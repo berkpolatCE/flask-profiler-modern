@@ -227,7 +227,7 @@ class Sqlite(BaseStorage):
             rows = self.cursor.fetchall()
         
         if not rows:
-            return None
+            return {}
         
         return self.jsonify_row(rows[0])
 
@@ -242,7 +242,8 @@ class Sqlite(BaseStorage):
             self.cursor.execute(
                 f'DELETE FROM "{self.table_name}" WHERE ID=?', (int(measurementId),)
             )
-            return self.connection.commit()
+            self.connection.commit()
+            return self.cursor.rowcount > 0
 
     def jsonify_row(self, row):
         data = {
