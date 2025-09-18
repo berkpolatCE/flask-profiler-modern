@@ -254,7 +254,8 @@ class Mongo(BaseStorage):
         available_types = [int, dict, str, list]
         obj["startedAt"] = obj["startedAt"].strftime("%s")
         obj["endedAt"] = obj["endedAt"].strftime("%s")
-        for k, v in obj.items():
+        for k in list(obj.keys()):
+            v = obj[k]
             if any([isinstance(v, av_type) for av_type in available_types]):
                 continue
             if k == "_id":
