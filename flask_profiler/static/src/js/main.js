@@ -13,6 +13,8 @@ import '../css/components.css';
 // Import Flatpickr CSS
 import 'flatpickr/dist/flatpickr.min.css';
 
+const REPO_API_URL = 'https://api.github.com/repos/berkpolatCE/flask-profiler-modern';
+
 class TabManager {
   constructor() {
     this.tabs = {
@@ -136,9 +138,31 @@ domReady(() => {
   if (isProfilerPage) {
     new TabManager();
   }
+
+  fetchStarCount();
 });
 
 // Export for potential use in templates
 window.FlaskProfiler = {
   TabManager
 };
+
+async function fetchStarCount() {
+  const countEl = document.getElementById('github-star-count');
+  if (!countEl) {
+    return;
+  }
+
+  try {
+    const response = await fetch(REPO_API_URL, { headers: { Accept: 'application/vnd.github+json' } });
+    if (!response.ok) {
+      throw new Error(`GitHub API responded with ${response.status}`);
+    }
+    const data = await response.json();
+    const stars = typeof data.stargazers_count === 'number' ? data.stargazers_count : 0;
+    countEl.textContent = Intl.NumberFormat().format(stars);
+  } catch (error) {
+    console.warn('Unable to fetch GitHub stars:', error);
+    countEl.textContent = '—';
+  }
+}

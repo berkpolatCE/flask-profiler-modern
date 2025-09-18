@@ -116,20 +116,10 @@ a:hover {
   height: 1.6rem;
 }
 
-.header-tag {
+.header-right {
   display: inline-flex;
   align-items: center;
-  gap: var(--spacing-xs);
-  padding: 0.2rem 0.65rem;
-  font-size: 0.7rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  color: rgba(255, 255, 255, 0.78);
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.28);
-  border-radius: 999px;
-  backdrop-filter: blur(6px);
+  gap: var(--spacing-sm);
 }
 
 @media (max-width: 680px) {
@@ -139,9 +129,6 @@ a:hover {
     gap: var(--spacing-md);
   }
 
-  .header-tag {
-    align-self: flex-start;
-  }
 }
 
 /* Main content */
