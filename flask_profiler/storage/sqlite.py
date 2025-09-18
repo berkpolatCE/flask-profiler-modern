@@ -1,5 +1,6 @@
 import sqlite3
 import json
+import re
 from .base import BaseStorage
 from datetime import datetime
 from timeit import default_timer
@@ -14,11 +15,18 @@ def formatDate(timestamp, dateFormat):
 
 class Sqlite(BaseStorage):
     """docstring for Sqlite"""
+    
+    ALLOWED_SORT_MAIN = {"ID", "startedAt", "endedAt", "elapsed", "method", "name"}
+    ALLOWED_SORT_SUMMARY = {"method", "name", "count", "minElapsed", "maxElapsed", "avgElapsed"}
+    
     def __init__(self, config=None):
         super(Sqlite, self).__init__()
         self.config = config
         self.sqlite_file = self.config.get("FILE", "flask_profiler.sql")
         self.table_name = self.config.get("TABLE", "measurements")
+        
+        if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', self.table_name):
+            raise ValueError(f"Invalid table name: {self.table_name}")
 
         self.startedAt_head = 'startedAt'  # name of the column
         self.endedAt_head = 'endedAt'  # name of the column
@@ -42,6 +50,15 @@ class Sqlite(BaseStorage):
 
     def __enter__(self):
         return self
+    
+    def _sanitize_sort(self, requested, allowed, default_field, default_dir="DESC"):
+        field = (requested[0] if requested else default_field)
+        direction = (requested[1] if len(requested) > 1 else default_dir).upper()
+        if field not in allowed:
+            field = default_field
+        if direction not in ("ASC", "DESC"):
+            direction = default_dir
+        return field, direction
 
     @staticmethod
     def getFilters(kwargs):
@@ -146,21 +163,14 @@ class Sqlite(BaseStorage):
 
         endedAt, startedAt = filters["endedAt"], filters["startedAt"]
 
-        conditions = "where endedAt<={0} AND startedAt>={1} ".format(
-            endedAt, startedAt)
         with self.lock:
-            sql = '''SELECT
-                    startedAt, count(id) as count
-                FROM "{table_name}" {conditions}
-                group by strftime("{dateFormat}", datetime(startedAt, 'unixepoch'))
-                order by startedAt asc
-                '''.format(
-                    table_name=self.table_name,
-                    dateFormat=dateFormat,
-                    conditions=conditions
-                    )
-
-            self.cursor.execute(sql)
+            sql = f'''SELECT startedAt, count(id) as count
+                      FROM "{self.table_name}"
+                      WHERE endedAt <= ? AND startedAt >= ?
+                      GROUP BY strftime("{dateFormat}", datetime(startedAt, 'unixepoch'))
+                      ORDER BY startedAt ASC'''
+            
+            self.cursor.execute(sql, (endedAt, startedAt))
             rows = self.cursor.fetchall()
 
         series = {}
@@ -176,20 +186,14 @@ class Sqlite(BaseStorage):
             kwds = {}
         f = Sqlite.getFilters(kwds)
         endedAt, startedAt = f["endedAt"], f["startedAt"]
-        conditions = "where endedAt<={0} AND startedAt>={1} ".format(
-            endedAt, startedAt)
 
         with self.lock:
-            sql = '''SELECT
-                    method, count(id) as count
-                FROM "{table_name}" {conditions}
-                group by method
-                '''.format(
-                    table_name=self.table_name,
-                    conditions=conditions
-                    )
-
-            self.cursor.execute(sql)
+            sql = f'''SELECT method, count(id) as count
+                      FROM "{self.table_name}"
+                      WHERE endedAt <= ? AND startedAt >= ?
+                      GROUP BY method'''
+            
+            self.cursor.execute(sql, (endedAt, startedAt))
             rows = self.cursor.fetchall()
 
         results = {}
@@ -198,48 +202,49 @@ class Sqlite(BaseStorage):
         return results
 
     def filter(self, kwds={}):
-        # Find Operation
         f = Sqlite.getFilters(kwds)
-
-        conditions = "WHERE 1=1 AND "
-
-        if f["endedAt"]:
-            conditions = conditions + 'endedAt<={0} AND '.format(f["endedAt"])
-        if f["startedAt"]:
-            conditions = conditions + 'startedAt>={0} AND '.format(
-                f["startedAt"])
-        if f["elapsed"]:
-            conditions = conditions + 'elapsed>={0} AND '.format(f["elapsed"])
+        where_clauses, params = [], []
+        
+        if f["endedAt"] is not None:
+            where_clauses.append("endedAt <= ?")
+            params.append(float(f["endedAt"]))
+        if f["startedAt"] is not None:
+            where_clauses.append("startedAt >= ?")
+            params.append(float(f["startedAt"]))
+        if f["elapsed"] not in (None, ""):
+            where_clauses.append("elapsed >= ?")
+            params.append(float(f["elapsed"]))
         if f["method"]:
-            conditions = conditions + 'method="{0}" AND '.format(f["method"])
+            where_clauses.append("method = ?")
+            params.append(f["method"])
         if f["name"]:
-            conditions = conditions + 'name="{0}" AND '.format(f["name"])
-
-        conditions = conditions.rstrip(" AND")
-
+            where_clauses.append("name = ?")
+            params.append(f["name"])
+        
+        where_sql = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
+        sort_field, sort_dir = self._sanitize_sort(
+            f["sort"],
+            allowed=self.ALLOWED_SORT_MAIN,
+            default_field="endedAt",
+            default_dir="DESC"
+        )
+        
+        sql = f'''SELECT ID, startedAt, endedAt, elapsed, args, kwargs, method, context, name
+                  FROM "{self.table_name}" {where_sql}
+                  ORDER BY {sort_field} {sort_dir}
+                  LIMIT ? OFFSET ?'''
+        
+        params.extend([int(f['limit']), int(f['skip'])])
+        
         with self.lock:
-            sql = '''SELECT * FROM "{table_name}" {conditions}
-            order by {sort_field} {sort_direction}
-            limit {limit} OFFSET {skip} '''.format(
-                table_name=self.table_name,
-                conditions=conditions,
-                sort_field=f["sort"][0],
-                sort_direction=f["sort"][1],
-                limit=f['limit'],
-                skip=f['skip']
-            )
-
-            self.cursor.execute(sql)
+            self.cursor.execute(sql, params)
             rows = self.cursor.fetchall()
         return (self.jsonify_row(row) for row in rows)
 
     def get(self, measurementId):
         with self.lock:
             self.cursor.execute(
-                'SELECT * FROM "{table_name}" WHERE ID={measurementId}'.format(
-                    table_name=self.table_name,
-                    measurementId=measurementId
-                    )
+                f'SELECT * FROM "{self.table_name}" WHERE ID=?', (int(measurementId),)
             )
             rows = self.cursor.fetchall()
         record = rows[0]
@@ -256,10 +261,7 @@ class Sqlite(BaseStorage):
     def delete(self, measurementId):
         with self.lock:
             self.cursor.execute(
-                'DELETE FROM "{table_name}" WHERE ID={measurementId}'.format(
-                    table_name=self.table_name,
-                    measurementId=measurementId
-                    )
+                f'DELETE FROM "{self.table_name}" WHERE ID=?', (int(measurementId),)
             )
             return self.connection.commit()
 
@@ -280,38 +282,34 @@ class Sqlite(BaseStorage):
 
     def getSummary(self, kwds={}):
         filters = Sqlite.getFilters(kwds)
-
-        conditions = "WHERE 1=1 and "
-
-        if filters["startedAt"]:
-            conditions = conditions + "startedAt>={0} AND ".format(
-                filters["startedAt"])
-        if filters["endedAt"]:
-            conditions = conditions + "endedAt<={0} AND ".format(
-                filters["endedAt"])
-        if filters["elapsed"]:
-            conditions = conditions + "elapsed>={0} AND".format(
-                filters["elapsed"])
-
-        conditions = conditions.rstrip(" AND")
+        where_clauses, params = [], []
+        
+        if filters["startedAt"] is not None:
+            where_clauses.append("startedAt >= ?")
+            params.append(float(filters["startedAt"]))
+        if filters["endedAt"] is not None:
+            where_clauses.append("endedAt <= ?")
+            params.append(float(filters["endedAt"]))
+        if filters["elapsed"] not in (None, ""):
+            where_clauses.append("elapsed >= ?")
+            params.append(float(filters["elapsed"]))
+        
+        where_sql = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
+        sort_field, sort_dir = self._sanitize_sort(
+            filters["sort"], self.ALLOWED_SORT_SUMMARY, default_field="count", default_dir="DESC"
+        )
+        
+        sql = f'''SELECT method, name,
+                         count(id) as count,
+                         min(elapsed) as minElapsed,
+                         max(elapsed) as maxElapsed,
+                         avg(elapsed) as avgElapsed
+                  FROM "{self.table_name}" {where_sql}
+                  GROUP BY method, name
+                  ORDER BY {sort_field} {sort_dir}'''
+        
         with self.lock:
-            sql = '''SELECT
-                    method, name,
-                    count(id) as count,
-                    min(elapsed) as minElapsed,
-                    max(elapsed) as maxElapsed,
-                    avg(elapsed) as avgElapsed
-                FROM "{table_name}" {conditions}
-                group by method, name
-                order by {sort_field} {sort_direction}
-                '''.format(
-                    table_name=self.table_name,
-                    conditions=conditions,
-                    sort_field=filters["sort"][0],
-                    sort_direction=filters["sort"][1]
-                    )
-
-            self.cursor.execute(sql)
+            self.cursor.execute(sql, params)
             rows = self.cursor.fetchall()
 
         result = []
