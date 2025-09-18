@@ -28,7 +28,8 @@ _CONFS = {
     "sqlite": {
         "enabled": True,
         "storage": {
-            "engine": "sqlite"
+            "engine": "sqlite",
+            "db_url": "sqlite:///:memory:"
         },
         "ignore": [
             "^/static/.*"
@@ -38,7 +39,7 @@ _CONFS = {
         "enabled": True,
         "storage": {
             "engine": "sqlalchemy",
-            "db_url": "sqlite:///flask_profiler.sql"
+            "db_url": "sqlite:///:memory:"
         },
         "ignore": [
             "^/static/.*"
@@ -66,6 +67,10 @@ class BasetTest(unittest.TestCase):
     def setUp(self):
         super().setUp()
         collection.truncate()
+
+    def tearDown(self):
+        collection.truncate()
+        super().tearDown()
 
     def create_app(self):
         app = Flask(__name__)
@@ -133,6 +138,10 @@ class BaseTest2(unittest.TestCase):
     def setUp(self):
         super().setUp()
         collection.truncate()
+
+    def tearDown(self):
+        collection.truncate()
+        super().tearDown()
 
     def create_app(self):
         app = Flask(__name__)

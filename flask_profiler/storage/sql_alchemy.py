@@ -7,6 +7,7 @@ from sqlalchemy import create_engine, Text
 from sqlalchemy import Column, Integer, Numeric
 from sqlalchemy.orm import declarative_base, sessionmaker
 from sqlalchemy import func
+from sqlalchemy.pool import StaticPool
 
 base = declarative_base()
 
@@ -48,15 +49,20 @@ class Sqlalchemy(BaseStorage):
         super(Sqlalchemy, self).__init__()
         self.config = config
         engine_kwargs = {}
-        for k in ["pool_size", "max_overflow", "pool_recycle", "pool_timeout"]:
-            v = self.config.get(k)
-            if v is not None:
-                engine_kwargs[k] = v
-        engine_kwargs["pool_pre_ping"] = self.config.get("pool_pre_ping", True)
-        self.db = create_engine(
-            self.config.get("db_url", "sqlite:///flask_profiler.sql"),
-            **engine_kwargs
-        )
+        db_url = self.config.get("db_url", "sqlite:///flask_profiler.sql")
+
+        is_in_memory_sqlite = db_url.startswith("sqlite:///:memory:") or db_url == "sqlite://"
+        if is_in_memory_sqlite:
+            engine_kwargs["poolclass"] = StaticPool
+            engine_kwargs["connect_args"] = {"check_same_thread": False}
+        else:
+            for k in ["pool_size", "max_overflow", "pool_recycle", "pool_timeout"]:
+                v = self.config.get(k)
+                if v is not None:
+                    engine_kwargs[k] = v
+            engine_kwargs["pool_pre_ping"] = self.config.get("pool_pre_ping", True)
+
+        self.db = create_engine(db_url, **engine_kwargs)
         self.Session = sessionmaker(bind=self.db)
         self.create_database()
 

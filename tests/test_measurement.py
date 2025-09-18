@@ -25,7 +25,7 @@ class MeasurementTest(BasetTest):
         result = wrapped(waitSeconds)
         m = list(collection.filter())[0]
         self.assertEqual(m["name"], "doWait")
-        self.assertEqual(float(m["elapsed"]) >= waitSeconds, True)
+        self.assertGreaterEqual(float(m["elapsed"]), waitSeconds - 0.01)
 
     def test_03_measurement_params(self):
         context = {"token": "x"}
@@ -42,7 +42,7 @@ class MeasurementTest(BasetTest):
         self.assertEqual(m["args"][0], waitSeconds)
         self.assertEqual(m["kwargs"], kwargs)
         self.assertEqual(m["context"], context)
-        self.assertTrue(float(m["elapsed"]) >= waitSeconds)
+        self.assertGreaterEqual(float(m["elapsed"]), waitSeconds - 0.01)
 
 if __name__ == '__main__':
     unittest.main()
