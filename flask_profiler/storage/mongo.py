@@ -20,16 +20,28 @@ class Mongo(BaseStorage):
         self.collection_name = self.config.get("COLLECTION", "measurements")
 
         def createIndex():
-            self.collection.ensure_index(
-                [
-                    ('startedAt', 1),
-                    ('endedAt', 1),
-                    ('elapsed', 1),
-                    ('name', 1),
-                    ('method', 1)]
-                )
+            self.collection.create_index([
+                ('startedAt', 1),
+                ('endedAt', 1),
+                ('elapsed', 1),
+                ('name', 1),
+                ('method', 1)
+            ])
 
-        self.client = pymongo.MongoClient(self.mongo_url)
+        pool_kwargs = {}
+        for k in [
+            "maxPoolSize",
+            "minPoolSize",
+            "waitQueueTimeoutMS",
+            "socketTimeoutMS",
+            "connectTimeoutMS",
+            "serverSelectionTimeoutMS",
+        ]:
+            v = self.config.get(k)
+            if v is not None:
+                pool_kwargs[k] = v
+
+        self.client = pymongo.MongoClient(self.mongo_url, **pool_kwargs)
         self.db = self.client[self.database_name]
         self.collection = self.db[self.collection_name]
         createIndex()
@@ -86,22 +98,16 @@ class Mongo(BaseStorage):
         measurement["endedAt"] = datetime.datetime.fromtimestamp(
             measurement["endedAt"])
 
-        result = self.collection.insert(measurement)
-        if result:
-            return True
-        return False
+        result = self.collection.insert_one(measurement)
+        return True if result and result.inserted_id else False
 
     def truncate(self):
-        result = self.collection.remove()
-        if result:
-            return True
-        return False
+        result = self.collection.delete_many({})
+        return True if result is not None else False
 
     def delete(self, measurementId):
-        result = self.collection.remove({"_id": ObjectId(measurementId)})
-        if result:
-            return True
-        return False
+        result = self.collection.delete_one({"_id": ObjectId(measurementId)})
+        return True if result and result.deleted_count == 1 else False
 
     def getSummary(self,  filtering={}):
         match_condition = {}

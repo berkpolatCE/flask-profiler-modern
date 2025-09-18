@@ -5,8 +5,7 @@ from datetime import datetime
 import time
 from sqlalchemy import create_engine, Text
 from sqlalchemy import Column, Integer, Numeric
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import declarative_base, sessionmaker
 from sqlalchemy import func
 
 base = declarative_base()
@@ -48,10 +47,17 @@ class Sqlalchemy(BaseStorage):
     def __init__(self, config=None):
         super(Sqlalchemy, self).__init__()
         self.config = config
+        engine_kwargs = {}
+        for k in ["pool_size", "max_overflow", "pool_recycle", "pool_timeout"]:
+            v = self.config.get(k)
+            if v is not None:
+                engine_kwargs[k] = v
+        engine_kwargs["pool_pre_ping"] = self.config.get("pool_pre_ping", True)
         self.db = create_engine(
             self.config.get("db_url", "sqlite:///flask_profiler.sql"),
-            pool_pre_ping=True
+            **engine_kwargs
         )
+        self.Session = sessionmaker(bind=self.db)
         self.create_database()
 
     def __enter__(self):
@@ -72,18 +78,22 @@ class Sqlalchemy(BaseStorage):
         method = kwds.get('method', None)
         name = kwds.get('name', None)
 
-        session = sessionmaker(self.db)()
-        session.add(Measurements(
-            endedAt=endedAt,
-            startedAt=startedAt,
-            elapsed=elapsed,
-            args=args,
-            kwargs=kwargs,
-            context=context,
-            method=method,
-            name=name,
-        ))
-        session.commit()
+        with self.Session() as session:
+            try:
+                session.add(Measurements(
+                    endedAt=endedAt,
+                    startedAt=startedAt,
+                    elapsed=elapsed,
+                    args=args,
+                    kwargs=kwargs,
+                    context=context,
+                    method=method,
+                    name=name,
+                ))
+                session.commit()
+            except Exception:
+                session.rollback()
+                raise
 
     @staticmethod
     def getFilters(kwargs):
@@ -112,26 +122,27 @@ class Sqlalchemy(BaseStorage):
     def filter(self, kwds={}):
         # Find Operation
         f = Sqlalchemy.getFilters(kwds)
-        session = sessionmaker(self.db)()
-        query = session.query(Measurements)
+        with self.Session() as session:
+            query = session.query(Measurements)
 
-        if f["endedAt"]:
-            query = query.filter(Measurements.endedAt <= f["endedAt"])
-        if f["startedAt"]:
-            query = query.filter(Measurements.startedAt >= f["startedAt"])
-        if f["elapsed"]:
-            query = query.filter(Measurements.elapsed >= f["elapsed"])
-        if f["method"]:
-            query = query.filter(Measurements.method == f["method"])
-        if f["name"]:
-            query = query.filter(Measurements.name == f["name"])
+            if f["endedAt"]:
+                query = query.filter(Measurements.endedAt <= f["endedAt"])
+            if f["startedAt"]:
+                query = query.filter(Measurements.startedAt >= f["startedAt"])
+            if f["elapsed"]:
+                query = query.filter(Measurements.elapsed >= f["elapsed"])
+            if f["method"]:
+                query = query.filter(Measurements.method == f["method"])
+            if f["name"]:
+                query = query.filter(Measurements.name == f["name"])
 
-        if f["sort"][1] == 'desc':
-            query = query.order_by(getattr(Measurements, f["sort"][0]).desc())
-        else:
-            query = query.order_by(getattr(Measurements, f["sort"][0]).asc())
-        rows = query.limit(f['limit']).offset(f['skip'])
-        return (Sqlalchemy.jsonify_row(row) for row in rows)
+            if f["sort"][1] == 'desc':
+                query = query.order_by(getattr(Measurements, f["sort"][0]).desc())
+            else:
+                query = query.order_by(getattr(Measurements, f["sort"][0]).asc())
+            rows = query.limit(f['limit']).offset(f['skip']).all()
+            result = [Sqlalchemy.jsonify_row(row) for row in rows]
+        return (r for r in result)
 
     @staticmethod
     def jsonify_row(row):
@@ -149,112 +160,110 @@ class Sqlalchemy(BaseStorage):
         return data
 
     def truncate(self):
-        session = sessionmaker(self.db)()
-        try:
-            session.query(Measurements).delete()
-            session.commit()
-            return True
-        except:
-            session.rollback()
-            return False
+        with self.Session() as session:
+            try:
+                session.query(Measurements).delete()
+                session.commit()
+                return True
+            except Exception:
+                session.rollback()
+                return False
 
     def delete(self, measurementId):
-        session = sessionmaker(self.db)()
-        try:
-            session.query(Measurements).filter_by(id=measurementId).delete()
-            session.commit()
-            return True
-        except:
-            session.rollback()
-            return False
+        with self.Session() as session:
+            try:
+                session.query(Measurements).filter_by(id=measurementId).delete()
+                session.commit()
+                return True
+            except Exception:
+                session.rollback()
+                return False
 
     def getSummary(self, kwds={}):
         filters = Sqlalchemy.getFilters(kwds)
-        session = sessionmaker(self.db)()
-        count = func.count(Measurements.id).label('count')
-        min_elapsed = func.min(Measurements.elapsed).label('minElapsed')
-        max_elapsed = func.max(Measurements.elapsed).label('maxElapsed')
-        avg_elapsed = func.avg(Measurements.elapsed).label('avgElapsed')
-        query = session.query(
-            Measurements.method,
-            Measurements.name,
-            count,
-            min_elapsed,
-            max_elapsed,
-            avg_elapsed
-        )
+        with self.Session() as session:
+            count = func.count(Measurements.id).label('count')
+            min_elapsed = func.min(Measurements.elapsed).label('minElapsed')
+            max_elapsed = func.max(Measurements.elapsed).label('maxElapsed')
+            avg_elapsed = func.avg(Measurements.elapsed).label('avgElapsed')
+            query = session.query(
+                Measurements.method,
+                Measurements.name,
+                count,
+                min_elapsed,
+                max_elapsed,
+                avg_elapsed
+            )
 
-        if filters["startedAt"]:
-            query = query.filter(Measurements.startedAt >= filters["startedAt"])
-        if filters["endedAt"]:
-            query = query.filter(Measurements.endedAt <= filters["endedAt"])
-        if filters["elapsed"]:
-            query = query.filter(Measurements.elapsed >= filters["elapsed"])
+            if filters["startedAt"]:
+                query = query.filter(Measurements.startedAt >= filters["startedAt"])
+            if filters["endedAt"]:
+                query = query.filter(Measurements.endedAt <= filters["endedAt"])
+            if filters["elapsed"]:
+                query = query.filter(Measurements.elapsed >= filters["elapsed"])
 
-        query = query.group_by(Measurements.method, Measurements.name)
-        if filters["sort"][1] == 'desc':
-            if filters["sort"][0] == 'count':
-                query = query.order_by(count.desc())
-            elif filters["sort"][0] == 'minElapsed':
-                query = query.order_by(min_elapsed.desc())
-            elif filters["sort"][0] == 'maxElapsed':
-                query = query.order_by(max_elapsed.desc())
-            elif filters["sort"][0] == 'avgElapsed':
-                query = query.order_by(avg_elapsed.desc())
+            query = query.group_by(Measurements.method, Measurements.name)
+            if filters["sort"][1] == 'desc':
+                if filters["sort"][0] == 'count':
+                    query = query.order_by(count.desc())
+                elif filters["sort"][0] == 'minElapsed':
+                    query = query.order_by(min_elapsed.desc())
+                elif filters["sort"][0] == 'maxElapsed':
+                    query = query.order_by(max_elapsed.desc())
+                elif filters["sort"][0] == 'avgElapsed':
+                    query = query.order_by(avg_elapsed.desc())
+                else:
+                    query = query.order_by(
+                        getattr(Measurements, filters["sort"][0]).desc())
             else:
-                query = query.order_by(
-                    getattr(Measurements, filters["sort"][0]).desc())
-        else:
-            if filters["sort"][0] == 'count':
-                query = query.order_by(count.asc())
-            elif filters["sort"][0] == 'minElapsed':
-                query = query.order_by(min_elapsed.asc())
-            elif filters["sort"][0] == 'maxElapsed':
-                query = query.order_by(max_elapsed.asc())
-            elif filters["sort"][0] == 'avgElapsed':
-                query = query.order_by(avg_elapsed.asc())
-            else:
-                query = query.order_by(
-                    getattr(Measurements, filters["sort"][0]).asc())
-        rows = query.all()
+                if filters["sort"][0] == 'count':
+                    query = query.order_by(count.asc())
+                elif filters["sort"][0] == 'minElapsed':
+                    query = query.order_by(min_elapsed.asc())
+                elif filters["sort"][0] == 'maxElapsed':
+                    query = query.order_by(max_elapsed.asc())
+                elif filters["sort"][0] == 'avgElapsed':
+                    query = query.order_by(avg_elapsed.asc())
+                else:
+                    query = query.order_by(
+                        getattr(Measurements, filters["sort"][0]).asc())
+            rows = query.all()
 
-        result = []
-        for r in rows:
-            result.append({
-                "method": r[0],
-                "name": r[1],
-                "count": r[2],
-                "minElapsed": r[3],
-                "maxElapsed": r[4],
-                "avgElapsed": r[5]
-            })
-        return result
+            result = []
+            for r in rows:
+                result.append({
+                    "method": r[0],
+                    "name": r[1],
+                    "count": r[2],
+                    "minElapsed": r[3],
+                    "maxElapsed": r[4],
+                    "avgElapsed": r[5]
+                })
+            return result
 
     def getTimeseries(self, kwds={}):
         filters = Sqlalchemy.getFilters(kwds)
-        session = sessionmaker(self.db)()
         if kwds.get('interval', None) == "daily":
-            interval = 3600 * 24   # daily
+            interval = 3600 * 24
             dateFormat = "%Y-%m-%d"
-            format = "day"
         else:
-            interval = 3600  # hourly
+            interval = 3600
             dateFormat = "%Y-%m-%d %H"
-            format = "hour"
         endedAt, startedAt = filters["endedAt"], filters["startedAt"]
 
-        rows = session.query(
-            Measurements.startedAt,
-        ).filter(
-            Measurements.endedAt <= endedAt,
-            Measurements.startedAt >= startedAt
-        ).order_by(
-            Measurements.startedAt.asc()
-        ).all()
+        with self.Session() as session:
+            rows = session.query(
+                Measurements.startedAt,
+            ).filter(
+                Measurements.endedAt <= endedAt,
+                Measurements.startedAt >= startedAt
+            ).order_by(
+                Measurements.startedAt.asc()
+            ).all()
 
         rows = [datetime.fromtimestamp(float(row[0])).strftime(dateFormat) for row in rows]
         temp = set(rows)
-        rows = [(time, rows.count(time)) for time in temp]
+        rows = [(t, rows.count(t)) for t in temp]
         series = {}
 
         for i in range(int(startedAt), int(endedAt) + 1, interval):
@@ -273,18 +282,18 @@ class Sqlalchemy(BaseStorage):
         if not kwds:
             kwds = {}
         f = Sqlalchemy.getFilters(kwds)
-        session = sessionmaker(self.db)()
         endedAt, startedAt = f["endedAt"], f["startedAt"]
 
-        rows = session.query(
-            Measurements.method,
-            func.count(Measurements.id)
-        ).filter(
-            Measurements.endedAt <= endedAt,
-            Measurements.startedAt >= startedAt
-        ).group_by(
-            Measurements.method
-        ).all()
+        with self.Session() as session:
+            rows = session.query(
+                Measurements.method,
+                func.count(Measurements.id)
+            ).filter(
+                Measurements.endedAt <= endedAt,
+                Measurements.startedAt >= startedAt
+            ).group_by(
+                Measurements.method
+            ).all()
 
         results = {}
         for row in rows:
