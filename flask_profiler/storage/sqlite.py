@@ -3,9 +3,7 @@ import json
 import re
 from .base import BaseStorage
 from datetime import datetime
-from timeit import default_timer
 import time
-# from time import perf_counter
 import threading
 
 
@@ -42,18 +40,14 @@ class Sqlite(BaseStorage):
         self.cursor = self.connection.cursor()
 
         self.lock = threading.Lock()
-        try:
-            self.create_database()
-        except sqlite3.OperationalError as e:
-            if "already exists" not in str(e):
-                raise e
+        self.create_database()
 
     def __enter__(self):
         return self
     
     def _sanitize_sort(self, requested, allowed, default_field, default_dir="DESC"):
-        field = (requested[0] if requested else default_field)
-        direction = (requested[1] if len(requested) > 1 else default_dir).upper()
+        field = (requested[0].strip() if requested else default_field)
+        direction = (requested[1].strip() if len(requested) > 1 else default_dir).upper()
         if field not in allowed:
             field = default_field
         if direction not in ("ASC", "DESC"):
@@ -79,48 +73,31 @@ class Sqlite(BaseStorage):
         filters["args"] = json.dumps(
             list(kwargs.get('args', ())))  # tuple -> list -> json
         filters["kwargs"] = json.dumps(kwargs.get('kwargs', ()))
-        filters["sort"] = kwargs.get('sort', "endedAt,desc").split(",")
         filters["skip"] = int(kwargs.get('skip', 0))
         filters["limit"] = int(kwargs.get('limit', 100))
         return filters
 
     def create_database(self):
         with self.lock:
-            sql = '''CREATE TABLE {table_name}
+            sql = f'''CREATE TABLE IF NOT EXISTS "{self.table_name}"
                 (
                 ID Integer PRIMARY KEY AUTOINCREMENT,
-                {startedAt} REAL,
-                {endedAt} REAL,
-                {elapsed} REAL,
-                {args} TEXT,
-                {kwargs} TEXT,
-                {method} TEXT,
-                {context} TEXT,
-                {name} TEXT
+                {self.startedAt_head} REAL,
+                {self.endedAt_head} REAL,
+                {self.elapsed_head} REAL,
+                {self.args_head} TEXT,
+                {self.kwargs_head} TEXT,
+                {self.method_head} TEXT,
+                {self.context_head} TEXT,
+                {self.name_head} TEXT
                 );
-            '''.format(
-                    table_name=self.table_name,
-                    startedAt=self.startedAt_head,
-                    endedAt=self.endedAt_head,
-                    elapsed=self.elapsed_head,
-                    args=self.args_head,
-                    kwargs=self.kwargs_head,
-                    method=self.method_head,
-                    context=self.context_head,
-                    name=self.name_head
-                )
+            '''
             self.cursor.execute(sql)
 
-            sql = """
-            CREATE INDEX measurement_index ON {table_name}
-                ({startedAt}, {endedAt}, {elapsed}, {name}, {method});
-            """.format(
-                startedAt=self.startedAt_head,
-                endedAt=self.endedAt_head,
-                elapsed=self.elapsed_head,
-                name=self.name_head,
-                method=self.method_head,
-                table_name=self.table_name)
+            sql = f'''
+            CREATE INDEX IF NOT EXISTS measurement_index ON "{self.table_name}"
+                ({self.startedAt_head}, {self.endedAt_head}, {self.elapsed_head}, {self.name_head}, {self.method_head});
+            '''
             self.cursor.execute(sql)
 
             self.connection.commit()
@@ -135,8 +112,9 @@ class Sqlite(BaseStorage):
         method = kwds.get('method', None)
         name = kwds.get('name', None)
 
-        sql = """INSERT INTO {0} VALUES (
-            null, ?, ?, ?, ?,?, ?, ?, ?)""".format(self.table_name)
+        sql = f'''INSERT INTO "{self.table_name}" 
+            (startedAt, endedAt, elapsed, args, kwargs, method, context, name)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)'''
 
         with self.lock:
             self.cursor.execute(sql, (
@@ -247,15 +225,16 @@ class Sqlite(BaseStorage):
                 f'SELECT * FROM "{self.table_name}" WHERE ID=?', (int(measurementId),)
             )
             rows = self.cursor.fetchall()
-        record = rows[0]
-        return self.jsonify_row(record)
+        
+        if not rows:
+            return None
+        
+        return self.jsonify_row(rows[0])
 
     def truncate(self):
         with self.lock:
-            self.cursor.execute("DELETE FROM {0}".format(self.table_name))
+            self.cursor.execute(f'DELETE FROM "{self.table_name}"')
             self.connection.commit()
-        # Making the api match with mongo collection, this function must return
-        # True or False based on success of this delete operation
         return True if self.cursor.rowcount else False
 
     def delete(self, measurementId):
