@@ -1,5 +1,5 @@
 // Filtering page with date range picker
-import { APIService, showError, formatElapsed, formatTimestamp, createMethodBadge } from './utils.js';
+import { APIService, showError, formatElapsed, formatTimestamp, createMethodBadge, highlightJSON } from './utils.js';
 import { ServerSideTable } from './table.js';
 import flatpickr from 'flatpickr';
 import dayjs from 'dayjs';
@@ -180,7 +180,8 @@ async function showMeasurementDetail(id) {
     
     // Safely render JSON with escaped HTML
     const jsonViewer = modal.querySelector('.json-viewer');
-    jsonViewer.textContent = JSON.stringify(detail, null, 2);
+    jsonViewer.classList.add('json-viewer-highlighted');
+    jsonViewer.innerHTML = highlightJSON(detail);
     
     document.body.appendChild(modal);
     

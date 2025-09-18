@@ -80,12 +80,46 @@ export function safeText(element, text) {
   element.textContent = text;
 }
 
-// Escape JSON for safe display
-export function escapeJSON(obj) {
-  return JSON.stringify(obj, null, 2)
-    .replace(/</g, '\\u003c')
-    .replace(/>/g, '\\u003e')
-    .replace(/&/g, '\\u0026');
+const HTML_ESCAPE_MAP = {
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+};
+
+function escapeHTML(value) {
+  return value.replace(/[&<>]/g, (char) => HTML_ESCAPE_MAP[char]);
+}
+
+export function highlightJSON(data) {
+  if (data === undefined) {
+    return '';
+  }
+
+  const jsonString = JSON.stringify(data, null, 2);
+  const escaped = escapeHTML(jsonString);
+
+  return escaped.replace(/("(?:\\u[a-fA-F0-9]{4}|\\[^u]|[^\\"])*"(?:\s*:)?|\btrue\b|\bfalse\b|\bnull\b|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)/g, (match) => {
+    let token = match;
+    let suffix = '';
+    let klass = 'json-token-number';
+
+    if (token.endsWith(':')) {
+      suffix = ':';
+      token = token.slice(0, -1);
+    }
+
+    if (token.startsWith('"')) {
+      klass = suffix ? 'json-token-key' : 'json-token-string';
+    } else if (token === 'true' || token === 'false') {
+      klass = 'json-token-boolean';
+    } else if (token === 'null') {
+      klass = 'json-token-null';
+    } else {
+      klass = 'json-token-number';
+    }
+
+    return `<span class="${klass}">${token}</span>${suffix}`;
+  });
 }
 
 // Show success message
