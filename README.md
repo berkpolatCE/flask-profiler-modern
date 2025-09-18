@@ -1,9 +1,15 @@
 # Flask-profiler
 
+**version: 2.0**
 
-**version: 1.8** [![Build Status](https://travis-ci.org/muatik/flask-profiler.svg?branch=master)](https://travis-ci.org/muatik/flask-profiler)
+Flask-profiler measures endpoints defined in your Flask application and provides a fine-grained report through a modern web interface. The 2.0 revamp and ongoing maintenance are led by Berk Polat.
 
-##### Flask-profiler measures endpoints defined in your flask application; and provides you fine-grained report through a web interface.
+## What's new in 2.0
+
+- **Modern dashboard UI** powered by Vite with syntax-highlighted JSON detail views.
+- **Secure-by-default frontend** with dependency updates and polished filtering workflows.
+- **Thread-safe profiler core** that supports multiple apps and storage engines.
+- **Expanded storage coverage** with parity tests for SQLite, SQLAlchemy, and MongoDB.
 
 It gives answers to these questions:
 * Where are the bottlenecks in my application?
@@ -14,22 +20,20 @@ It gives answers to these questions:
 
 In short, if you are curious about what your endpoints are doing and what requests they are receiving, give a try to flask-profiler.
 
-With flask-profiler's web interface, you can monitor all your endpoints' performance and investigate endpoints and received requests by drilling down through filters.
+With flask-profiler's modern web interface, you can monitor all your endpoints' performance and investigate requests by drilling down through refined filters.
 
 ## Screenshots
 
 Dashboard view displays a summary.
 
-![Alt text](resources/dashboard_screen.png?raw=true "Dashboard view")
+![Dashboard](resources/new_dashboard_screen.png?raw=true "Dashboard view")
 
 You can create filters to investigate certain type requests.
 
-![Alt text](resources/filtering_all_screen.png?raw=true "Filtering by endpoint")
+![Filtering](resources/new_filtering_all_screen.png?raw=true "Filtering by endpoint")
 
-![Alt text](resources/filtering_method_screen.png?raw=true "Filtering by method")
-
-You can see all the details of a request.
-![Alt text](resources/filtering_detail_screen.png?raw=true "Request detail")
+You can see all the details of a request with syntax-highlighted context.
+![Request detail](resources/new_filtering_detail_screen.png?raw=true "Request detail")
 
 ## Quick Start
 It is easy to understand flask-profiler going through an example. Let's dive in.
@@ -110,6 +114,8 @@ if __name__ == '__main__':
 
 
 ```
+
+> **Note:** Routes registered *after* `flask_profiler.init_app(app)` are not instrumented automatically. Use the `@flask_profiler.profile()` decorator to opt in later endpoints, blueprints, or factory-registered views.
 
 Now run your `app.py`
 ```
@@ -273,6 +279,29 @@ app.config["flask_profiler"] = {
 ```
 
 
+## Development & Testing
+
+The project ships with a pytest suite that exercises every storage backend. To run it locally:
+
+```sh
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+pytest
+```
+
+The frontend lives under `flask_profiler/static/` and is bundled with Vite:
+
+```sh
+cd flask_profiler/static
+npm install
+npm run dev   # for local development
+npm run build # to regenerate dist assets
+```
+
+If you prefer to test against a real MongoDB instance, set `FLASK_PROFILER_TEST_MONGO_URI` before running pytest. Otherwise the suite falls back to `mongomock`.
+
+
 ## Contributing
 
 Contributions are welcome!
@@ -287,6 +316,7 @@ Review the [Contributing Guidelines](https://github.com/muatik/flask-profiler/wi
 * [Musafa Atik](https://www.linkedin.com/in/muatik)
 * Fatih Sucu
 * [Safa Yasin Yildirim](https://www.linkedin.com/in/safayasinyildirim)
+* [Berk Polat](https://www.linkedin.com/in/berk-polat-56171a109/)
 
 ## License
 MIT
