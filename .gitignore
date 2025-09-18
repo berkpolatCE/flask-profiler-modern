@@ -63,12 +63,8 @@ target/
 # Generated files
 *.sql
 
-# Frontend source files (keep only dist/)
-flask_profiler/static/src/
+# Frontend dependencies and build artifacts
 flask_profiler/static/node_modules/
-flask_profiler/static/package.json
-flask_profiler/static/package-lock.json
-flask_profiler/static/vite.config.js
 flask_profiler/static/.gitignore
 
 # Old hashed files from previous builds

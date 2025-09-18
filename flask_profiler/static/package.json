@@ -1,0 +1,18 @@
+{
+  "name": "flask-profiler-frontend",
+  "version": "2.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "^5.0.0"
+  },
+  "dependencies": {
+    "chart.js": "^4.4.0",
+    "dayjs": "^1.11.0",
+    "flatpickr": "^4.6.0"
+  }
+}
