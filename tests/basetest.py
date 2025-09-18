@@ -117,8 +117,6 @@ class BaseTest2(unittest.TestCase):
         app = Flask(__name__)
         app.config["flask_profiler"] = CONF
         app.config['TESTING'] = True
-        profiler = flask_profiler.Profiler()
-        profiler.init_app(app)
 
         @app.route("/api/people/<firstname>")
         def sayHello(firstname):
@@ -127,5 +125,8 @@ class BaseTest2(unittest.TestCase):
         @app.route("/api/with/profiler/<message>")
         def customProfilerEP(message):
             return "with profiler"
+
+        profiler = flask_profiler.Profiler()
+        profiler.init_app(app)
 
         return app

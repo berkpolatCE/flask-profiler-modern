@@ -1,5 +1,5 @@
 # your app.py
-from flask import Flask
+from flask import Flask, request, jsonify
 import flask_profiler
 
 app = Flask(__name__)
@@ -11,7 +11,7 @@ app.config["flask_profiler"] = {
     "verbose": True,
     "enabled": app.config["DEBUG"],
     "storage": {
-        "engine": "sqlalchmey",
+        "engine": "sqlalchemy",
         "db_url": "sqlite:///flask_profiler.sql"  # optional
     },
     "basicAuth":{
@@ -44,6 +44,21 @@ def listProducts():
 @app.route('/static/photo/', methods=['GET'])
 def getPhoto():
     return "your photo"
+
+
+@app.route('/add', methods=['POST'])
+def add_numbers():
+    data = request.get_json()
+    if not data or 'a' not in data or 'b' not in data:
+        return jsonify({'error': 'Please provide both "a" and "b" numbers'}), 400
+    
+    try:
+        a = float(data['a'])
+        b = float(data['b'])
+        result = a + b
+        return jsonify({'result': result, 'a': a, 'b': b})
+    except (TypeError, ValueError):
+        return jsonify({'error': 'Both "a" and "b" must be valid numbers'}), 400
 
 
 # In order to active flask-profiler, you have to pass flask
