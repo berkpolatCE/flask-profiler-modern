@@ -179,6 +179,15 @@ class Sqlalchemy(BaseStorage):
                 session.rollback()
                 return False
 
+    def get(self, measurementId):
+        with self.Session() as session:
+            row = session.query(Measurements).filter_by(id=int(measurementId)).first()
+            
+            if not row:
+                return {}
+            
+            return self.jsonify_row(row)
+
     def getSummary(self, kwds={}):
         filters = Sqlalchemy.getFilters(kwds)
         with self.Session() as session:
@@ -227,6 +236,9 @@ class Sqlalchemy(BaseStorage):
                 else:
                     query = query.order_by(
                         getattr(Measurements, filters["sort"][0]).asc())
+            
+            # Add pagination support
+            query = query.limit(filters["limit"]).offset(filters["skip"])
             rows = query.all()
 
             result = []

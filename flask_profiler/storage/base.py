@@ -11,6 +11,9 @@ class BaseStorage(object):
     def getSummary(self, criteria):
         raise Exception("Not implemented Error")
 
+    def get(self, measurementId):
+        raise Exception("Not implemented Error")
+
     def insert(self, measurement):
         raise Exception("Not implemented Error")
 

@@ -295,7 +295,10 @@ class Sqlite(BaseStorage):
                          avg(elapsed) as avgElapsed
                   FROM "{self.table_name}" {where_sql}
                   GROUP BY method, name
-                  ORDER BY {sort_field} {sort_dir}'''
+                  ORDER BY {sort_field} {sort_dir}
+                  LIMIT ? OFFSET ?'''
+        
+        params.extend([int(filters['limit']), int(filters['skip'])])
         
         with self.lock:
             cursor = self.connection.execute(sql, params)
