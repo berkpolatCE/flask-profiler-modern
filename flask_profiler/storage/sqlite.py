@@ -37,7 +37,7 @@ class Sqlite(BaseStorage):
 
         self.connection = sqlite3.connect(
             self.sqlite_file, check_same_thread=False)
-        self.cursor = self.connection.cursor()
+        self.connection.row_factory = sqlite3.Row
 
         self.lock = threading.Lock()
         self.create_database()
@@ -92,13 +92,13 @@ class Sqlite(BaseStorage):
                 {self.name_head} TEXT
                 );
             '''
-            self.cursor.execute(sql)
+            self.connection.execute(sql)
 
             sql = f'''
             CREATE INDEX IF NOT EXISTS measurement_index ON "{self.table_name}"
                 ({self.startedAt_head}, {self.endedAt_head}, {self.elapsed_head}, {self.name_head}, {self.method_head});
             '''
-            self.cursor.execute(sql)
+            self.connection.execute(sql)
 
             self.connection.commit()
 
@@ -117,7 +117,7 @@ class Sqlite(BaseStorage):
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)'''
 
         with self.lock:
-            self.cursor.execute(sql, (
+            self.connection.execute(sql, (
                     startedAt,
                     endedAt,
                     elapsed,
@@ -129,7 +129,9 @@ class Sqlite(BaseStorage):
 
             self.connection.commit()
 
-    def getTimeseries(self, kwds={}):
+    def getTimeseries(self, kwds=None):
+        if kwds is None:
+            kwds = {}
         filters = Sqlite.getFilters(kwds)
 
         if kwds.get('interval', None) == "daily":
@@ -148,19 +150,19 @@ class Sqlite(BaseStorage):
                       GROUP BY strftime("{dateFormat}", datetime(startedAt, 'unixepoch'))
                       ORDER BY startedAt ASC'''
             
-            self.cursor.execute(sql, (endedAt, startedAt))
-            rows = self.cursor.fetchall()
+            cursor = self.connection.execute(sql, (endedAt, startedAt))
+            rows = cursor.fetchall()
 
         series = {}
         for i in range(int(startedAt), int(endedAt) + 1, interval):
             series[formatDate(i, dateFormat)] = 0
 
         for row in rows:
-            series[formatDate(row[0], dateFormat)] = row[1]
+            series[formatDate(row["startedAt"], dateFormat)] = row["count"]
         return series
 
     def getMethodDistribution(self, kwds=None):
-        if not kwds:
+        if kwds is None:
             kwds = {}
         f = Sqlite.getFilters(kwds)
         endedAt, startedAt = f["endedAt"], f["startedAt"]
@@ -171,15 +173,17 @@ class Sqlite(BaseStorage):
                       WHERE endedAt <= ? AND startedAt >= ?
                       GROUP BY method'''
             
-            self.cursor.execute(sql, (endedAt, startedAt))
-            rows = self.cursor.fetchall()
+            cursor = self.connection.execute(sql, (endedAt, startedAt))
+            rows = cursor.fetchall()
 
         results = {}
         for row in rows:
-            results[row[0]] = row[1]
+            results[row["method"]] = row["count"]
         return results
 
-    def filter(self, kwds={}):
+    def filter(self, kwds=None):
+        if kwds is None:
+            kwds = {}
         f = Sqlite.getFilters(kwds)
         where_clauses, params = [], []
         
@@ -215,16 +219,20 @@ class Sqlite(BaseStorage):
         params.extend([int(f['limit']), int(f['skip'])])
         
         with self.lock:
-            self.cursor.execute(sql, params)
-            rows = self.cursor.fetchall()
+            cursor = self.connection.execute(sql, params)
+            rows = cursor.fetchall()
         return (self.jsonify_row(row) for row in rows)
 
     def get(self, measurementId):
+        sql = f'''SELECT ID, {self.startedAt_head}, {self.endedAt_head}, 
+                         {self.elapsed_head}, {self.args_head}, {self.kwargs_head}, 
+                         {self.method_head}, {self.context_head}, {self.name_head}
+                  FROM "{self.table_name}" 
+                  WHERE ID = ?'''
+        
         with self.lock:
-            self.cursor.execute(
-                f'SELECT * FROM "{self.table_name}" WHERE ID=?', (int(measurementId),)
-            )
-            rows = self.cursor.fetchall()
+            cursor = self.connection.execute(sql, (int(measurementId),))
+            rows = cursor.fetchall()
         
         if not rows:
             return {}
@@ -233,34 +241,35 @@ class Sqlite(BaseStorage):
 
     def truncate(self):
         with self.lock:
-            self.cursor.execute(f'DELETE FROM "{self.table_name}"')
+            cursor = self.connection.execute(f'DELETE FROM "{self.table_name}"')
             self.connection.commit()
-        return True if self.cursor.rowcount else False
+            return cursor.rowcount > 0
 
     def delete(self, measurementId):
         with self.lock:
-            self.cursor.execute(
-                f'DELETE FROM "{self.table_name}" WHERE ID=?', (int(measurementId),)
+            cursor = self.connection.execute(
+                f'DELETE FROM "{self.table_name}" WHERE ID=?', 
+                (int(measurementId),)
             )
             self.connection.commit()
-            return self.cursor.rowcount > 0
+            return cursor.rowcount > 0
 
     def jsonify_row(self, row):
-        data = {
-            "id": row[0],
-            "startedAt": row[1],
-            "endedAt": row[2],
-            "elapsed": row[3],
-            "args": tuple(json.loads(row[4])),  # json -> list -> tuple
-            "kwargs": json.loads(row[5]),
-            "method": row[6],
-            "context": json.loads(row[7]),
-            "name": row[8]
+        return {
+            "id": row["ID"],
+            "startedAt": row["startedAt"],
+            "endedAt": row["endedAt"],
+            "elapsed": row["elapsed"],
+            "args": tuple(json.loads(row["args"])),
+            "kwargs": json.loads(row["kwargs"]),
+            "method": row["method"],
+            "context": json.loads(row["context"]),
+            "name": row["name"]
         }
 
-        return data
-
-    def getSummary(self, kwds={}):
+    def getSummary(self, kwds=None):
+        if kwds is None:
+            kwds = {}
         filters = Sqlite.getFilters(kwds)
         where_clauses, params = [], []
         
@@ -289,18 +298,18 @@ class Sqlite(BaseStorage):
                   ORDER BY {sort_field} {sort_dir}'''
         
         with self.lock:
-            self.cursor.execute(sql, params)
-            rows = self.cursor.fetchall()
+            cursor = self.connection.execute(sql, params)
+            rows = cursor.fetchall()
 
         result = []
-        for r in rows:
+        for row in rows:
             result.append({
-                "method": r[0],
-                "name": r[1],
-                "count": r[2],
-                "minElapsed": r[3],
-                "maxElapsed": r[4],
-                "avgElapsed": r[5]
+                "method": row["method"],
+                "name": row["name"],
+                "count": row["count"],
+                "minElapsed": row["minElapsed"],
+                "maxElapsed": row["maxElapsed"],
+                "avgElapsed": row["avgElapsed"]
             })
         return result
 
