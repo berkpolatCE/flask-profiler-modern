@@ -7,7 +7,9 @@ from flask import Flask
 
 sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
 
-from flask_profiler import flask_profiler, measure
+from flask_profiler import collection
+from flask_profiler import flask_profiler
+from flask_profiler import measure
 from flask_profiler import storage
 
 _CONFS = {
@@ -48,13 +50,22 @@ CONF = _CONFS[environ.get('FLASK_PROFILER_TEST_CONF', 'sqlalchemy')]
 
 class BasetTest(unittest.TestCase):
 
-    def setUp(cls):
-        flask_profiler.collection.truncate()
-
     @classmethod
     def setUpClass(cls):
+        cls._app = Flask(__name__)
+        cls._app.config["flask_profiler"] = CONF
+        cls._app.config["TESTING"] = True
+        flask_profiler.init_app(cls._app)
+        cls._ctx = cls._app.app_context()
+        cls._ctx.push()
 
-        flask_profiler.collection = storage.getCollection(CONF["storage"])
+    @classmethod
+    def tearDownClass(cls):
+        cls._ctx.pop()
+
+    def setUp(self):
+        super().setUp()
+        collection.truncate()
 
     def create_app(self):
         app = Flask(__name__)
@@ -105,13 +116,23 @@ class BasetTest(unittest.TestCase):
 
 class BaseTest2(unittest.TestCase):
 
-    def setUp(cls):
-        flask_profiler.collection.truncate()
-
     @classmethod
     def setUpClass(cls):
+        cls._app = Flask(__name__)
+        cls._app.config["flask_profiler"] = CONF
+        cls._app.config["TESTING"] = True
+        profiler = flask_profiler.Profiler()
+        profiler.init_app(cls._app)
+        cls._ctx = cls._app.app_context()
+        cls._ctx.push()
 
-        flask_profiler.collection = storage.getCollection(CONF["storage"])
+    @classmethod
+    def tearDownClass(cls):
+        cls._ctx.pop()
+
+    def setUp(self):
+        super().setUp()
+        collection.truncate()
 
     def create_app(self):
         app = Flask(__name__)

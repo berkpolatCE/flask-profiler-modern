@@ -67,6 +67,12 @@ target/
 flask_profiler/static/node_modules/
 flask_profiler/static/.gitignore
 
+# Local scripts
+scripts_berk/
+
+# Local documentation drafts
+docs_berk/
+
 # Old hashed files from previous builds
 flask_profiler/static/dist/js/index.*.js
 flask_profiler/static/dist/js/index.*.js.map

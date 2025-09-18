@@ -4,7 +4,8 @@ import unittest
 from flask_testing import TestCase as FlaskTestCase
 
 from flask_profiler.flask_profiler import is_ignored
-from .basetest import BasetTest, flask_profiler
+from flask_profiler import collection
+from .basetest import BasetTest
 
 
 class EndpointIgnoreTestCase(BasetTest, FlaskTestCase):
@@ -50,7 +51,7 @@ class EndpointIgnoreTestCase(BasetTest, FlaskTestCase):
         for s in ignored_routes:
             self.client.get(s)
 
-        measurements = list(flask_profiler.collection.filter())
+        measurements = list(collection.filter())
         self.assertEqual(len(measurements), 0)
 
         not_ignored_routes = [
@@ -60,7 +61,7 @@ class EndpointIgnoreTestCase(BasetTest, FlaskTestCase):
         for s in not_ignored_routes:
             print(self.client.get(s))
 
-        measurements = list(flask_profiler.collection.filter())
+        measurements = list(collection.filter())
         self.assertEqual(len(measurements), 2)
 
 

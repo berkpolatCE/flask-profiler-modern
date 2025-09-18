@@ -51,7 +51,7 @@ def add_numbers():
     data = request.get_json()
     if not data or 'a' not in data or 'b' not in data:
         return jsonify({'error': 'Please provide both "a" and "b" numbers'}), 400
-    
+
     try:
         a = float(data['a'])
         b = float(data['b'])
@@ -59,6 +59,31 @@ def add_numbers():
         return jsonify({'result': result, 'a': a, 'b': b})
     except (TypeError, ValueError):
         return jsonify({'error': 'Both "a" and "b" must be valid numbers'}), 400
+
+
+@app.route('/orders/<order_id>', methods=['PATCH'])
+def patch_order(order_id):
+    changes = request.get_json(silent=True) or {}
+    return jsonify({'status': 'patched', 'order_id': order_id, 'changes': changes})
+
+
+@app.route('/orders/<order_id>', methods=['DELETE'])
+def delete_order(order_id):
+    return jsonify({'status': 'deleted', 'order_id': order_id}), 204
+
+
+@app.route('/inventory', methods=['OPTIONS'])
+def inventory_options():
+    response = jsonify({'allow': ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD']})
+    response.headers['Allow'] = 'GET,POST,PATCH,DELETE,OPTIONS,HEAD'
+    return response
+
+
+@app.route('/inventory', methods=['HEAD'])
+def inventory_head():
+    response = app.response_class(status=200)
+    response.headers['X-Inventory-Count'] = '42'
+    return response
 
 
 # In order to active flask-profiler, you have to pass flask
