@@ -11,7 +11,7 @@ Flask-HTTPAuth==4.8.0
 
 # Database drivers
 SQLAlchemy==2.0.43
-pymongo==4.14.1
+pymongo>=4.14.1,<5
 
 # JSON handling (optional - could use stdlib json)
 simplejson==3.19.3
