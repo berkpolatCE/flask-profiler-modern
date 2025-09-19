@@ -1,322 +1,240 @@
-# Flask-profiler
+# flask-profiler-modern
 
-**version: 2.0**
+A fully modernized fork of the original [flask-profiler](https://github.com/muatik/flask-profiler) project. It delivers the profiling simplicity you expect with a refreshed UI, secure defaults, and first-class support for Flask 3.x. Modernization and ongoing maintenance are led by **Berk Polat**, building on the foundation created by **Mustafa Atik**.
 
-Flask-profiler measures endpoints defined in your Flask application and provides a fine-grained report through a modern web interface. The 2.0 revamp and ongoing maintenance are led by Berk Polat.
+---
 
-## What's new in 2.0
+## Table of Contents
+1. [Features](#features)
+2. [Installation](#installation)
+3. [Quick Start](#quick-start)
+4. [Instrumentation Model](#instrumentation-model)
+5. [Dashboard Tour](#dashboard-tour)
+6. [Storage Backends](#storage-backends)
+7. [Configuration Cheat Sheet](#configuration-cheat-sheet)
+8. [Sampling & Filtering](#sampling--filtering)
+9. [API Endpoints](#api-endpoints)
+10. [Development](#development)
+11. [Contributing](#contributing)
+12. [Credits & License](#credits--license)
 
-- **Modern dashboard UI** powered by Vite with syntax-highlighted JSON detail views.
-- **Secure-by-default frontend** with dependency updates and polished filtering workflows.
-- **Thread-safe profiler core** that supports multiple apps and storage engines.
-- **Expanded storage coverage** with parity tests for SQLite, SQLAlchemy, and MongoDB.
+---
 
-It gives answers to these questions:
-* Where are the bottlenecks in my application?
-* Which endpoints are the slowest in my application?
-* Which are the most frequently called endpoints?
-* What causes my slow endpoints? In which context, with what args and kwargs are they slow?
-* How much time did a specific request take?
+## Features
+- **Flask 3.x compatible** – Extension-style initialization with per-app state and thread safety.
+- **Modern dashboard** – Vite-built UI, GitHub star badge, responsive layout, and syntax-highlighted measurement detail.
+- **Multi-backend storage** – SQLite, SQLAlchemy, and MongoDB (or custom engines) with parametrized pytest coverage.
+- **Secure defaults** – Basic authentication support, ignore patterns, and highlighted configuration guidance.
+- **Simple integration** – One `init_app` call profiles existing routes; decorators cover factory or late-registered endpoints.
 
-In short, if you are curious about what your endpoints are doing and what requests they are receiving, give a try to flask-profiler.
+---
 
-With flask-profiler's modern web interface, you can monitor all your endpoints' performance and investigate requests by drilling down through refined filters.
+## Installation
 
-## Screenshots
-
-Dashboard view displays a summary.
-
-![Dashboard](resources/new_dashboard_screen.png?raw=true "Dashboard view")
-
-You can create filters to investigate certain type requests.
-
-![Filtering](resources/new_filtering_all_screen.png?raw=true "Filtering by endpoint")
-
-You can see all the details of a request with syntax-highlighted context.
-![Request detail](resources/new_filtering_detail_screen.png?raw=true "Request detail")
-
-## Quick Start
-It is easy to understand flask-profiler going through an example. Let's dive in.
-
-Install flask-profiler by pip.
-```sh
-pip install flask_profiler
+```bash
+pip install flask-profiler-modern
 ```
 
+Optional extras bring in backend-specific dependencies:
 
-Edit your code where you are creating Flask app.
+| Extra               | Command                                         | Includes                     |
+|---------------------|-------------------------------------------------|------------------------------|
+| SQLAlchemy storage  | `pip install flask-profiler-modern[sqlalchemy]` | `SQLAlchemy>=2.0.0`          |
+| MongoDB storage     | `pip install flask-profiler-modern[mongo]`      | `pymongo>=4.14.1,<5`         |
+| Everything          | `pip install flask-profiler-modern[all]`        | Both of the above            |
+
+---
+
+## Quick Start
+
 ```python
-# your app.py
 from flask import Flask
 import flask_profiler
 
 app = Flask(__name__)
 app.config["DEBUG"] = True
-
-# You need to declare necessary configuration to initialize
-# flask-profiler as follows:
 app.config["flask_profiler"] = {
-    "enabled": app.config["DEBUG"],
+    "enabled": True,
     "storage": {
-        "engine": "sqlite"
+        "engine": "sqlite",              # sqlite | sqlalchemy | mongodb | dotted path
+        "db_url": "sqlite:///profiler.db"
     },
-    "basicAuth":{
-        "enabled": True,
-        "username": "admin",
-        "password": "admin"
+    "basicAuth": {
+        "enabled": False                  # enable in production!
     },
-    "ignore": [
-	    "^/static/.*"
-	]
+    "ignore": ["^/static/.*"]
 }
 
+@app.route("/ping")
+def ping():
+    return "pong"
 
-@app.route('/product/<id>', methods=['GET'])
-def getProduct(id):
-    return "product id is " + str(id)
-
-
-@app.route('/product/<id>', methods=['PUT'])
-def updateProduct(id):
-    return "product {} is being updated".format(id)
-
-
-@app.route('/products', methods=['GET'])
-def listProducts():
-    return "suppose I send you product list..."
-
-@app.route('/static/something/', methods=['GET'])
-def staticSomething():
-    return "this should not be tracked..."
-
-# In order to active flask-profiler, you have to pass flask
-# app as an argument to flask-profiler.
-# All the endpoints declared so far will be tracked by flask-profiler.
 flask_profiler.init_app(app)
 
-
-# endpoint declarations after flask_profiler.init_app() will be
-# hidden to flask_profiler.
-@app.route('/doSomething', methods=['GET'])
-def doSomething():
-    return "flask-profiler will not measure this."
-
-
-# But in case you want an endpoint to be measured by flask-profiler,
-# you can specify this explicitly by using profile() decorator
-@app.route('/doSomethingImportant', methods=['GET'])
+# Routes registered after init_app need explicit opt-in.
+@app.route("/late")
 @flask_profiler.profile()
-def doSomethingImportant():
-    return "flask-profiler will measure this request."
+def late_route():
+    return "tracked"
 
-if __name__ == '__main__':
-    app.run(host="127.0.0.1", port=5000)
-
-
+if __name__ == "__main__":
+    app.run()
 ```
 
-> **Note:** Routes registered *after* `flask_profiler.init_app(app)` are not instrumented automatically. Use the `@flask_profiler.profile()` decorator to opt in later endpoints, blueprints, or factory-registered views.
+Open `http://127.0.0.1:5000/flask-profiler/` to view the dashboard.
 
-Now run your `app.py`
-```
-python app.py
-```
+---
 
-And make some requests like:
-```sh
-curl http://127.0.0.1:5000/products
-curl http://127.0.0.1:5000/product/123
-curl -X PUT -d arg1=val1 http://127.0.0.1:5000/product/123
-```
+## Instrumentation Model
 
-If everything is okay, Flask-profiler will measure these requests. You can see the result heading to http://127.0.0.1:5000/flask-profiler/ or get results as JSON http://127.0.0.1:5000/flask-profiler/api/measurements?sort=elapsed,desc
+| Scenario                              | How to profile it                                                                               |
+|---------------------------------------|--------------------------------------------------------------------------------------------------|
+| Routes defined before `init_app`      | Automatically wrapped when you call `flask_profiler.init_app(app)`                              |
+| Routes added after `init_app`         | Decorate with `@flask_profiler.profile()`                                                       |
+| Factory/blueprint pattern             | Call `init_app` inside your factory once routes are registered, or decorate the blueprint views |
+| Custom instrumentation                | Use `flask_profiler.measure(func, name, method)` to wrap arbitrary callables                    |
 
-If you like to initialize your extensions in other files or use factory apps pattern, you can also create a instance of the `Profiler` class, this will register all your endpoints once you app run by first time. E.g:
+> TIP: `flask_profiler.current_profiler` exposes the active profiler state if you need low-level access.
+
+---
+
+## Dashboard Tour
+
+- **Overview** – Request timeline & method distribution with range controls.
+- **Filtering** – Server-side table with sort/search plus quick filters from the dashboard.
+- **Details** – Syntax-highlighted JSON modal enumerating request context, headers, args, and body.
+
+![Dashboard](resources/new_dashboard_screen.png?raw=true "Dashboard overview")
+
+![Filtering](resources/new_filtering_all_screen.png?raw=true "Filtering table")
+
+![Request detail](resources/new_filtering_detail_screen.png?raw=true "Measurement detail")
+
+---
+
+## Storage Backends
+
+Configuration lives under `app.config["flask_profiler"]["storage"]`.
+
+| Engine       | Minimal config                                     | Notes                                        |
+|--------------|----------------------------------------------------|----------------------------------------------|
+| SQLite       | `{ "engine": "sqlite", "db_url": "sqlite:///profiler.db" }` | Default if omitted                           |
+| SQLAlchemy   | `{ "engine": "sqlalchemy", "db_url": "postgresql://..." }` | Works with any SQLAlchemy URL                |
+| MongoDB      | `{ "engine": "mongodb", "MONGO_URL": "mongodb://..." }`    | Requires `pymongo` (or `mongomock` for tests) |
+| Custom class | `{ "engine": "package.module.CustomStorage" }`               | Must subclass `flask_profiler.storage.BaseStorage` |
+
+Extras control dependency installation; see [Installation](#installation).
+
+---
+
+## Configuration Cheat Sheet
+
+| Key                               | Type      | Default                        | Description                                             |
+|-----------------------------------|-----------|--------------------------------|---------------------------------------------------------|
+| `enabled`                         | bool      | `False`                        | Toggle profiling globally                                |
+| `storage.engine`                  | str       | `"sqlite"`                    | Storage backend identifier                               |
+| `storage.db_url`                  | str       | engine-specific                | Optional database URL for SQL storage                    |
+| `basicAuth.enabled`               | bool      | `False`                        | Enable dashboard authentication                          |
+| `basicAuth.username/password`     | str       | `admin/admin` (example)        | Credentials if basic auth is enabled                     |
+| `ignore`                          | list[str] | `[]`                           | Regex patterns to skip profiling                         |
+| `sampling_function`               | callable  | `None`                         | Return truthy to record, falsy to skip                  |
+| `endpointRoot`                    | str       | `"flask-profiler"`            | URL prefix for dashboard and API                         |
+| `verbose`                         | bool      | `False`                        | Print measurement JSON to stdout                         |
+
+---
+
+## Sampling & Filtering
+
+### Sampling function
+Use a callable to decide per-request whether to record data.
 
 ```python
-from flask import Flask
-from flask_profiler import Profiler
+import random
 
-profiler = Profiler()
-
-app = Flask(__name__)
-
-app.config["DEBUG"] = True
-
-# You need to declare necessary configuration to initialize
-# flask-profiler as follows:
 app.config["flask_profiler"] = {
-    "enabled": app.config["DEBUG"],
-    "storage": {
-        "engine": "sqlite"
-    },
-    "basicAuth":{
-        "enabled": True,
-        "username": "admin",
-        "password": "admin"
-    },
+    "sampling_function": lambda: random.random() < 0.05  # 5% sample rate
+}
+```
+
+### Ignoring routes
+
+```python
+app.config["flask_profiler"] = {
     "ignore": [
-        "^/static/.*"
+        "^/static/.*",
+        "/healthz",
+        "/metrics"
     ]
 }
-
-profiler = Profiler()  # You can have this in another module
-profiler.init_app(app)
-# Or just Profiler(app)
-
-@app.route('/product/<id>', methods=['GET'])
-def getProduct(id):
-    return "product id is " + str(id)
-
 ```
 
-## Using with different database system
-You can use flaskprofiler with **SqlLite**, **MongoDB**, **Postgresql**, **Mysql** or **MongoDB** database systems. However, it is easy to support other database systems. If you would like to have others, please go to contribution documentation. (It is really easy.)
+Ignored routes and unsuccessful samples are never written to storage.
 
-### SQLite
-In order to use SQLite, just specify it as the value of `storage.engine` directive as follows.
+---
 
-```json
-app.config["flask_profiler"] = {
-    "storage": {
-        "engine": "sqlite",
-    }
-}
-```
+## API Endpoints
 
-Below the other options are listed.
+The dashboard uses a small JSON API rooted at `/flask-profiler/` by default. You can call these directly:
 
-| Filter key   |      Description      |  Default |
-|----------|-------------|------|
-| storage.FILE | SQLite database file name | flask_profiler.sql|
-| storage.TABLE | table name in which profiling data will reside | measurements |
+| Endpoint                                      | Method | Description                                 |
+|-----------------------------------------------|--------|---------------------------------------------|
+| `/flask-profiler/api/measurements/`           | GET    | Paged measurements (supports filters)        |
+| `/flask-profiler/api/measurements/grouped`    | GET    | Aggregated per endpoint statistics           |
+| `/flask-profiler/api/measurements/<id>`       | GET    | Full measurement payload                     |
+| `/flask-profiler/api/measurements/timeseries/`| GET    | Request counts over time                     |
+| `/flask-profiler/api/measurements/methodDistribution/` | GET | Count of requests per HTTP method           |
+| `/flask-profiler/db/dumpDatabase`             | GET    | Download all measurements as JSON            |
+| `/flask-profiler/db/deleteDatabase`           | GET    | Delete all stored measurements               |
 
-### MongoDB
-In order to use MongoDB, just specify it as the value of `storage.engine` directive as follows.
+Parameters such as `startedAt`, `endedAt`, `skip`, `limit`, and `sort` mirror those used by the UI. All endpoints require basic auth if you enable it.
 
-```json
-app.config["flask_profiler"] = {
-    "storage": {
-        "engine": "mongodb",
-    }
-}
-```
+---
 
-### SQLAchemy
-In order to use SQLAchemy, just specify it as the value of `storage.engine` directive as follows.
-Also first create an empty database with the name "flask_profiler".
+## Development
 
-```python
-app.config["flask_profiler"] = {
-    "storage": {
-        "engine": "sqlalchemy",
-        "db_url": "postgresql://user:pass@localhost:5432/flask_profiler"  # optional, if no db_url specified then sqlite will be used.
-    }
-}
-```
+Clone the repo and set up your environment:
 
-### Custom database engine
-Specify engine as string module and class path.
+```bash
+git clone https://github.com/berkpolatCE/flask-profiler-modern.git
+cd flask-profiler-modern
 
-```json
-app.config["flask_profiler"] = {
-    "storage": {
-        "engine": "custom.project.flask_profiler.mysql.MysqlStorage",
-        "MYSQL": "mysql://user:password@localhost/flask_profiler"
-    }
-}
-```
-
-The other options are listed below.
-
-| Filter key   |      Description      |  Default
-|----------|-------------|------
-| storage.MONGO_URL | mongodb connection string | mongodb://localhost
-| storage.DATABASE | database name | flask_profiler
-| storage.COLLECTION | collection name | measurements
-
-### Sampling
-Control the number of samples taken by flask-profiler
-
-You would want control over how many times should the flask profiler take samples while running in production mode.
-You can supply a function and control the sampling according to your business logic.
-
-Example 1: Sample 1 in 100 times with random numbers
-```python
-app.config["flask_profiler"] = {
-    "sampling_function": lambda: True if random.sample(list(range(1, 101)), 1) == [42] else False
-}
-```
-
-Example 2: Sample for specific users
-```python
-app.config["flask_profiler"] = {
-    "sampling_function": lambda: True if user is 'divyendu' else False
-}
-```
-
-If sampling function is not present, all requests will be sampled.
-
-### Changing flask-profiler endpoint root
-By default, we can access flask-profiler at <your-app>/flask-profiler
-
-```python
-app.config["flask_profiler"] = {
-        "endpointRoot": "secret-flask-profiler"
-}
-```
-
-### Ignored endpoints
-Flask-profiler will try to track every endpoint defined so far when init_app() is invoked. If you want to exclude some of the endpoints, you can define matching regex for them as follows:
-
-```python
-app.config["flask_profiler"] = {
-        "ignore": [
-	        "^/static/.*",
-	        "/api/users/\w+/password"
-        ]
-}
-```
-
-
-## Development & Testing
-
-The project ships with a pytest suite that exercises every storage backend. To run it locally:
-
-```sh
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+
+cd flask_profiler/static
+npm install
+npm run dev
+```
+
+Run tests before submitting changes:
+
+```bash
+source .venv/bin/activate
 pytest
 ```
 
-The frontend lives under `flask_profiler/static/` and is bundled with Vite:
+Building frontend assets:
 
-```sh
+```bash
 cd flask_profiler/static
-npm install
-npm run dev   # for local development
-npm run build # to regenerate dist assets
+npm run build
 ```
 
-If you prefer to test against a real MongoDB instance, set `FLASK_PROFILER_TEST_MONGO_URI` before running pytest. Otherwise the suite falls back to `mongomock`.
+`FLASK_PROFILER_TEST_MONGO_URI` points pytest at a real MongoDB. Without it, tests fall back to `mongomock`.
 
+---
 
 ## Contributing
 
-Contributions are welcome!
+Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for the contributor workflow, coding standards, and test requirements. Open issues and roadmap items live at [github.com/berkpolatCE/flask-profiler-modern/issues](https://github.com/berkpolatCE/flask-profiler-modern/issues).
 
-Review the [Contributing Guidelines](https://github.com/muatik/flask-profiler/wiki/Development) for details on how to:
+---
 
-* Submit issues
-* Add solutions to existing challenges
-* Add new challenges
+## Credits & License
 
-## Authors
-* [Musafa Atik](https://www.linkedin.com/in/muatik)
-* Fatih Sucu
-* [Safa Yasin Yildirim](https://www.linkedin.com/in/safayasinyildirim)
-* [Berk Polat](https://www.linkedin.com/in/berk-polat-56171a109/)
+- **Original author:** Mustafa Atik — [github.com/muatik/flask-profiler](https://github.com/muatik/flask-profiler)
+- **Modernization & maintenance:** [Berk Polat](https://www.linkedin.com/in/berk-polat-56171a109/)
+- Licensed under the [MIT License](LICENSE)
 
-## License
-MIT
+If this project helps you, please star the repository or share your improvements with the community!

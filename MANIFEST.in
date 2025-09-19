@@ -1,7 +1,12 @@
 include *.txt
 include *.md
 include setup.py
+include setup.cfg
+include pyproject.toml
 include LICENSE
 graft flask_profiler/static/
 recursive-include flask_profiler/static *
+prune flask_profiler/static/node_modules
+prune flask_profiler/static/.git*
+global-exclude *.DS_Store
 global-exclude *.pyc

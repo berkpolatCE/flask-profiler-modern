@@ -1,31 +1,27 @@
-## Making Changes
-tl;dr: Contributors should follow the standard team development practices.
+## Contributing Guide
 
-* Fork the repository on GitHub.
-* Create a topic branch from where you want to base your work.
-* This is usually the master branch.
-* Please avoid working directly on master branch.
-* Make commits of logical units (if needed rebase your feature branch before submitting it).
-* Check for unnecessary whitespace with git diff --check before committing.
-* Make sure your commit messages are in the proper format.
-* If your commit fixes an open issue, reference it in the commit message (#15).
-* Make sure your code comforms to [PEP8](https://www.python.org/dev/peps/pep-0008/).
-* Make sure you have added the necessary tests for your changes.
-* Run all the tests to assure nothing else was accidentally broken.
+Thanks for helping keep Flask-Profiler healthy! This fork is actively maintained by Berk Polat; the notes below describe the expected workflow.
 
+### Making Changes
 
-It is highly encouraged to follow this link and understand git branching model explained in it: http://nvie.com/posts/a-successful-git-branching-model
+1. Fork the repository and clone your fork locally.
+2. Create a topic branch from `master` (e.g. `git checkout -b feature/my-fix`). Avoid committing directly to `master`.
+3. Make focused commits with clear messages. Reference issues where relevant (e.g. `Fixes #15`).
+4. Ensure Python code follows [PEP 8](https://www.python.org/dev/peps/pep-0008/) and JavaScript changes respect the existing style.
+5. Keep the automated suite happy:
+   * Backend: `source .venv/bin/activate && pytest`
+   * Frontend (when touching `flask_profiler/static/src/`): `cd flask_profiler/static && npm install && npm run build`
+6. Verify that Vite-produced assets (`static/dist/`) are rebuilt if you touched frontend code.
+7. Run `git diff --check` to catch stray whitespace before committing.
 
-## Submitting Changes
+### Submitting Changes
 
-* Push your changes to a topic branch in your fork of the repository.
-* Submit a Pull Request.
-* Wait for maintainer feedback.
+1. Push your topic branch to your fork.
+2. Open a Pull Request against `master` on [berkpolatCE/flask-profiler-modern](https://github.com/berkpolatCE/flask-profiler-modern).
+3. Fill in the PR template, call out any manual testing, and wait for maintainer review.
 
+### Where to Start?
 
-## Dont' know where to start? 
-There are usually several TODO comments scattered around the codebase, maybe
-check them out and see if you have ideas, or can help with them. Also, check
-the [open issues](https://github.com/muatik/flask-profiler/issues) in case there's something that sparks your interest. What
-about documentation?  I suck at english so if you're fluent with it (or notice
-any error), why not help with that? 
+Check the [issue tracker](https://github.com/berkpolatCE/flask-profiler-modern/issues) for open items or enhancement ideas. Documentation improvements, example applications, and additional tests are always welcome. If you notice something unclear in the README or docs, submit a PR!
+
+For a refresher on collaborative branching strategies, this post is helpful: http://nvie.com/posts/a-successful-git-branching-model
