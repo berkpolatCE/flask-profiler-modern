@@ -22,7 +22,7 @@ A fully modernized fork of the original [flask-profiler](https://github.com/muat
 
 ## Features
 - **Flask 3.x compatible** – Extension-style initialization with per-app state and thread safety.
-- **Modern dashboard** – Vite-built UI, GitHub star badge, responsive layout, and syntax-highlighted measurement detail.
+- **Modern dashboard** – Vite-built UI, responsive layout, and syntax-highlighted measurement detail.
 - **Multi-backend storage** – SQLite, SQLAlchemy, and MongoDB (or custom engines) with parametrized pytest coverage.
 - **Secure defaults** – Basic authentication support, ignore patterns, and highlighted configuration guidance.
 - **Simple integration** – One `init_app` call profiles existing routes; decorators cover factory or late-registered endpoints.
@@ -60,7 +60,7 @@ app.config["flask_profiler"] = {
         "db_url": "sqlite:///profiler.db"
     },
     "basicAuth": {
-        "enabled": False                  # enable in production!
+        "enabled": False                  # enable
     },
     "ignore": ["^/static/.*"]
 }
