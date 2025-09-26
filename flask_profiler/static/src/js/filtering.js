@@ -1,5 +1,6 @@
 // Filtering page with date range picker
 import { APIService, showError, formatElapsed, formatTimestamp, createMethodBadge, highlightJSON } from './utils.js';
+import { enhanceDropdown } from './enhancedDropdown.js';
 import { ServerSideTable } from './table.js';
 import flatpickr from 'flatpickr';
 import dayjs from 'dayjs';
@@ -7,6 +8,7 @@ import dayjs from 'dayjs';
 const api = new APIService();
 let filteringTable;
 let dateRangePicker;
+let methodDropdown;
 
 export function initFiltering() {
   const container = document.getElementById('filtering-table');
@@ -81,7 +83,7 @@ export function initFiltering() {
   
   // Setup filter controls
   setupFilterControls();
-  enhanceMethodDropdown();
+  methodDropdown = enhanceDropdown(document.getElementById('filter-method'));
   
   // Listen for click-to-filter events from dashboard
   window.addEventListener('filter-endpoint', handleFilterEndpoint);
@@ -115,203 +117,6 @@ function setupFilterControls() {
   });
 }
 
-function enhanceMethodDropdown() {
-  const select = document.getElementById('filter-method');
-  if (!select || select.dataset.dropdownEnhanced === 'true') {
-    return;
-  }
-
-  const parent = select.parentElement;
-  if (!parent) {
-    return;
-  }
-
-  select.dataset.dropdownEnhanced = 'true';
-
-  const wrapper = document.createElement('div');
-  wrapper.className = 'enhanced-dropdown';
-  parent.insertBefore(wrapper, select);
-  wrapper.appendChild(select);
-
-  select.classList.add('enhanced-dropdown__native');
-  select.setAttribute('aria-hidden', 'true');
-
-  const associatedLabel = document.querySelector(`label[for="${select.id}"]`);
-  if (associatedLabel && !associatedLabel.id) {
-    associatedLabel.id = `${select.id}-label`;
-  }
-
-  const trigger = document.createElement('button');
-  trigger.type = 'button';
-  trigger.className = 'enhanced-dropdown__trigger';
-  trigger.id = `${select.id}-toggle`;
-  trigger.setAttribute('aria-haspopup', 'listbox');
-  trigger.setAttribute('aria-expanded', 'false');
-
-  if (associatedLabel) {
-    trigger.setAttribute('aria-labelledby', `${associatedLabel.id} ${trigger.id}`);
-  } else if (select.getAttribute('aria-label')) {
-    trigger.setAttribute('aria-label', select.getAttribute('aria-label'));
-  }
-
-  const labelEl = document.createElement('span');
-  labelEl.className = 'enhanced-dropdown__label';
-  trigger.appendChild(labelEl);
-
-  const chevronEl = document.createElement('span');
-  chevronEl.className = 'enhanced-dropdown__chevron';
-  chevronEl.setAttribute('aria-hidden', 'true');
-  trigger.appendChild(chevronEl);
-
-  wrapper.appendChild(trigger);
-
-  const menu = document.createElement('ul');
-  menu.className = 'enhanced-dropdown__menu';
-  menu.id = `${select.id}-menu`;
-  menu.setAttribute('role', 'listbox');
-  menu.setAttribute('tabindex', '-1');
-  trigger.setAttribute('aria-controls', menu.id);
-  wrapper.appendChild(menu);
-
-  const optionNodes = Array.from(select.options).map((option) => {
-    const optionItem = document.createElement('li');
-    optionItem.className = 'enhanced-dropdown__option';
-    optionItem.dataset.value = option.value;
-    optionItem.setAttribute('role', 'option');
-    optionItem.setAttribute('tabindex', '-1');
-    optionItem.textContent = option.textContent;
-    menu.appendChild(optionItem);
-    return optionItem;
-  });
-
-  const setSelected = (value = select.value ?? '') => {
-    let target = optionNodes.find((node) => (node.dataset.value ?? '') === value);
-    if (!target) {
-      target = optionNodes[0];
-    }
-
-    optionNodes.forEach((node) => node.removeAttribute('aria-selected'));
-    if (target) {
-      target.setAttribute('aria-selected', 'true');
-      labelEl.textContent = target.textContent;
-    } else {
-      labelEl.textContent = '';
-    }
-
-    return target;
-  };
-
-  const closeMenu = () => {
-    wrapper.classList.remove('is-open');
-    trigger.setAttribute('aria-expanded', 'false');
-  };
-
-  const focusOptionByOffset = (current, offset) => {
-    if (!current) {
-      return;
-    }
-
-    const currentIndex = optionNodes.indexOf(current);
-    if (currentIndex === -1) {
-      return;
-    }
-
-    const nextIndex = (currentIndex + offset + optionNodes.length) % optionNodes.length;
-    optionNodes[nextIndex]?.focus();
-  };
-
-  const openMenu = () => {
-    wrapper.classList.add('is-open');
-    trigger.setAttribute('aria-expanded', 'true');
-    const active = menu.querySelector('.enhanced-dropdown__option[aria-selected="true"]') ?? optionNodes[0];
-    active?.focus();
-  };
-
-  const toggleMenu = () => {
-    if (wrapper.classList.contains('is-open')) {
-      closeMenu();
-    } else {
-      openMenu();
-    }
-  };
-
-  trigger.addEventListener('click', (event) => {
-    event.preventDefault();
-    toggleMenu();
-  });
-
-  trigger.addEventListener('keydown', (event) => {
-    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-      event.preventDefault();
-      if (!wrapper.classList.contains('is-open')) {
-        openMenu();
-        return;
-      }
-
-      const direction = event.key === 'ArrowDown' ? 1 : -1;
-      const activeEl = document.activeElement;
-      const current = (activeEl && activeEl.classList && activeEl.classList.contains('enhanced-dropdown__option'))
-        ? activeEl
-        : menu.querySelector('.enhanced-dropdown__option[aria-selected="true"]');
-      focusOptionByOffset(current, direction);
-    } else if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault();
-      toggleMenu();
-    } else if (event.key === 'Escape') {
-      closeMenu();
-      trigger.focus();
-    }
-  });
-
-  optionNodes.forEach((optionItem) => {
-    optionItem.addEventListener('click', (event) => {
-      event.preventDefault();
-      const value = optionItem.dataset.value ?? '';
-      select.value = value;
-      setSelected(value);
-      select.dispatchEvent(new Event('change', { bubbles: true }));
-      closeMenu();
-      trigger.focus();
-    });
-
-    optionItem.addEventListener('keydown', (event) => {
-      if (event.key === 'ArrowDown') {
-        event.preventDefault();
-        focusOptionByOffset(optionItem, 1);
-      } else if (event.key === 'ArrowUp') {
-        event.preventDefault();
-        focusOptionByOffset(optionItem, -1);
-      } else if (event.key === 'Enter' || event.key === ' ') {
-        event.preventDefault();
-        optionItem.click();
-      } else if (event.key === 'Escape') {
-        event.preventDefault();
-        closeMenu();
-        trigger.focus();
-      }
-    });
-  });
-
-  select.addEventListener('change', () => {
-    setSelected(select.value ?? '');
-  });
-
-  const onDocumentClick = (event) => {
-    if (!wrapper.contains(event.target)) {
-      closeMenu();
-    }
-  };
-
-  document.addEventListener('click', onDocumentClick);
-
-  select._enhancedDropdown = {
-    sync: (value) => setSelected(value ?? ''),
-    close: closeMenu
-  };
-
-  setSelected();
-}
-
 function handleFilterEndpoint(e) {
   const { method, name } = e.detail;
   const methodInput = document.getElementById('filter-method');
@@ -322,6 +127,7 @@ function handleFilterEndpoint(e) {
   if (methodInput) {
     methodInput.value = method ? method.toUpperCase() : '';
     methodInput.dispatchEvent(new Event('change', { bubbles: true }));
+    methodDropdown?.sync(methodInput.value ?? '');
   } else {
     applyFilters();
   }
@@ -355,11 +161,9 @@ function resetFilters() {
     if (input.tagName === 'SELECT') {
       input.selectedIndex = 0;
       input.value = '';
-      if (input._enhancedDropdown && typeof input._enhancedDropdown.sync === 'function') {
-        input._enhancedDropdown.sync('');
-      }
-      if (input._enhancedDropdown && typeof input._enhancedDropdown.close === 'function') {
-        input._enhancedDropdown.close();
+      if (input === methodDropdown?.element) {
+        methodDropdown.sync('');
+        methodDropdown.close();
       }
       return;
     }
@@ -433,6 +237,10 @@ export function cleanupFiltering() {
   if (dateRangePicker) {
     dateRangePicker.destroy();
     dateRangePicker = null;
+  }
+  if (methodDropdown) {
+    methodDropdown.destroy();
+    methodDropdown = null;
   }
   window.removeEventListener('filter-endpoint', handleFilterEndpoint);
 }
