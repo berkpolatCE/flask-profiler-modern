@@ -107,7 +107,16 @@
                                 </div>
                                 <div>
                                     <label class="form-label" for="filter-method">Method:</label>
-                                    <input type="text" id="filter-method" class="form-control filter-input" placeholder="e.g., GET, POST">
+                                    <select id="filter-method" class="form-control filter-input">
+                                        <option value="">All methods</option>
+                                        <option value="GET">GET</option>
+                                        <option value="POST">POST</option>
+                                        <option value="PUT">PUT</option>
+                                        <option value="DELETE">DELETE</option>
+                                        <option value="PATCH">PATCH</option>
+                                        <option value="OPTIONS">OPTIONS</option>
+                                        <option value="HEAD">HEAD</option>
+                                    </select>
                                 </div>
                             </div>
                             <div class="grid grid-cols-2" style="gap: 1rem; margin-bottom: 1rem;">
