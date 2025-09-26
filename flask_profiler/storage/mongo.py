@@ -82,14 +82,9 @@ class Mongo(BaseStorage):
         if kwargs:
             query['kwargs'] = kwargs
 
-        if limit:
-            cursor = self.collection.find(
-                query
-                ).sort(sort[0], sort_dir).skip(skip)
-        else:
-            cursor = self.collection.find(
-                query
-                ).sort(sort[0], sort_dir).skip(skip).limit(limit)
+        cursor = self.collection.find(query).sort(sort[0], sort_dir).skip(skip)
+        if limit > 0:
+            cursor = cursor.limit(limit)
         return (self.clearify(record) for record in cursor)
 
     def insert(self, measurement):

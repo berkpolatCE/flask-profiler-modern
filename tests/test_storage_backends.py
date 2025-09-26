@@ -61,3 +61,26 @@ def test_storage_get_and_delete(profiler_state, profiler_collection):
 
     profiler_collection.truncate()
     assert list(profiler_collection.filter()) == []
+
+
+@pytest.mark.usefixtures("app")
+def test_storage_filter_respects_limit(profiler_state, profiler_collection):
+    profiler_collection.truncate()
+
+    total_records = 7
+
+    def record(idx):
+        def target():
+            return idx
+
+        wrapped = profiler_state.measure(target, f"endpoint-{idx}", "GET")
+        assert wrapped() == idx
+
+    for i in range(total_records):
+        record(i)
+
+    limited = list(profiler_collection.filter({"limit": 5}))
+    assert len(limited) == 5
+
+    remaining = list(profiler_collection.filter({"skip": 5}))
+    assert len(remaining) == total_records - 5
