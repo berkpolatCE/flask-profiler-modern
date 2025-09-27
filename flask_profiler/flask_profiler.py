@@ -99,16 +99,17 @@ class _ProfilerState(object):
         self.conf = self._load_config(app)
         self.enabled = bool(self.conf.get("enabled", False))
         self.collection = None
-        self.auth = HTTPBasicAuth()
-        self.auth.verify_password(self._verify_password)
+        self.auth = None
+        self._auth_strategy = "none"
+        self._auth_decorator = None
         if not self.enabled:
             return
+        self._auth_decorator = self._init_authenticator()
         self.collection = storage.getCollection(self.conf.get("storage", {}))
         self._wrap_app_endpoints()
         self._register_internal_routes()
-        basic_auth = self.conf.get("basicAuth")
-        if not basic_auth or not basic_auth.get("enabled"):
-            logging.warning(" * CAUTION: flask-profiler is working without basic auth!")
+        if self._auth_strategy == "none":
+            logging.warning(" * CAUTION: flask-profiler dashboard is not protected!")
 
     def _load_config(self, app):
         try:
@@ -119,11 +120,58 @@ class _ProfilerState(object):
             except KeyError:
                 raise Exception(
                     "to init flask-profiler, provide required config through flask app's config. "
-                    "please refer: https://github.com/muatik/flask-profiler"
+                    "please refer: https://github.com/berkpolatCE/flask-profiler-modern"
                 )
 
+    def _init_authenticator(self):
+        flask_login_raw = self.conf.get("flaskLogin")
+        if isinstance(flask_login_raw, dict):
+            flask_login_conf = flask_login_raw
+        elif flask_login_raw:
+            flask_login_conf = {"enabled": bool(flask_login_raw)}
+        else:
+            flask_login_conf = {}
+
+        basic_raw = self.conf.get("basicAuth")
+        if isinstance(basic_raw, dict):
+            basic_conf = basic_raw
+        elif basic_raw:
+            basic_conf = {"enabled": bool(basic_raw)}
+        else:
+            basic_conf = {}
+
+        if flask_login_conf.get("enabled"):
+            try:
+                from flask_login import login_required as flask_login_required
+            except ImportError as exc:
+                raise RuntimeError(
+                    "flask-profiler is configured to use Flask-Login authentication, "
+                    "but Flask-Login is not installed"
+                ) from exc
+            if basic_conf.get("enabled"):
+                logging.warning(
+                    " * flask-profiler: ignoring basicAuth configuration because flaskLogin.enabled is True"
+                )
+            self._auth_strategy = "flask-login"
+            return flask_login_required
+
+        if basic_conf.get("enabled"):
+            self.auth = HTTPBasicAuth()
+            self.auth.verify_password(self._verify_password)
+            self._auth_strategy = "basic"
+            return self.auth.login_required
+
+        self._auth_strategy = "none"
+        return lambda view: view
+
     def _verify_password(self, username, password):
-        basic = self.conf.get("basicAuth", {})
+        basic_raw = self.conf.get("basicAuth", {})
+        if isinstance(basic_raw, dict):
+            basic = basic_raw
+        elif basic_raw:
+            basic = {"enabled": bool(basic_raw)}
+        else:
+            basic = {}
         if not basic.get("enabled"):
             return True
         if username == basic.get("username") and password == basic.get("password"):
@@ -147,51 +195,53 @@ class _ProfilerState(object):
             static_url_path="/static/dist",
         )
 
+        protect = self._auth_decorator or (lambda view: view)
+
         @fp.route("/")
-        @self.auth.login_required
+        @protect
         def index():
             return fp.send_static_file("index.html")
 
         @fp.route("/api/measurements/")
-        @self.auth.login_required
+        @protect
         def filter_measurements():
             args = dict(request.args.items())
             measurements = self.collection.filter(args)
             return jsonify({"measurements": list(measurements)})
 
         @fp.route("/api/measurements/grouped")
-        @self.auth.login_required
+        @protect
         def get_measurements_summary():
             args = dict(request.args.items())
             measurements = self.collection.getSummary(args)
             return jsonify({"measurements": list(measurements)})
 
         @fp.route("/api/measurements/<measurement_id>")
-        @self.auth.login_required
+        @protect
         def get_context(measurement_id):
             return jsonify(self.collection.get(measurement_id))
 
         @fp.route("/api/measurements/timeseries/")
-        @self.auth.login_required
+        @protect
         def get_requests_timeseries():
             args = dict(request.args.items())
             return jsonify({"series": self.collection.getTimeseries(args)})
 
         @fp.route("/api/measurements/methodDistribution/")
-        @self.auth.login_required
+        @protect
         def get_method_distribution():
             args = dict(request.args.items())
             return jsonify({"distribution": self.collection.getMethodDistribution(args)})
 
         @fp.route("/db/dumpDatabase")
-        @self.auth.login_required
+        @protect
         def dump_database():
             response = jsonify({"summary": self.collection.getSummary({})})
             response.headers["Content-Disposition"] = "attachment; filename=dump.json"
             return response
 
         @fp.route("/db/deleteDatabase")
-        @self.auth.login_required
+        @protect
         def delete_database():
             response = jsonify({"status": self.collection.truncate()})
             return response
@@ -214,7 +264,7 @@ class _ProfilerState(object):
         if not callable(sampling_fn):
             raise Exception(
                 "if sampling_function is provided to flask-profiler via config, it must be callable, refer to: "
-                "https://github.com/muatik/flask-profiler#sampling"
+                "https://github.com/berkpolatCE/flask-profiler-modern#sampling"
             )
         return bool(sampling_fn())
 

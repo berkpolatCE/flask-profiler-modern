@@ -72,7 +72,7 @@ function displayCurrentSettings() {
       'Storage Backend': 'SQLite',
       'Data Retention': 'Unlimited',
       'Sampling Rate': '100%',
-      'Authentication': 'Basic Auth Enabled'
+      'Authentication': 'Configured on the server'
     };
     
     let html = '<dl class="settings-list">';

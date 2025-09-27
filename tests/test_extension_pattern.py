@@ -103,3 +103,54 @@ def test_profiler_state_isolated_between_apps(tmp_path):
 
     assert len(data1) == 1
     assert len(data2) == 1
+
+
+def test_dashboard_uses_flask_login_when_enabled(tmp_path):
+    pytest.importorskip("flask_login")
+    from flask_login import LoginManager, UserMixin, login_user
+
+    class _User(UserMixin):
+        def __init__(self, user_id: str):
+            self.id = user_id
+
+    app = Flask("flask-login-app")
+    app.secret_key = "testing-secret"
+    app.config["TESTING"] = True
+    app.config["flask_profiler"] = {
+        "enabled": True,
+        "storage": {
+            "engine": "sqlalchemy",
+            "db_url": f"sqlite:///{tmp_path / 'flask_login.db'}",
+        },
+        "flaskLogin": {"enabled": True},
+    }
+
+    login_manager = LoginManager(app)
+    login_manager.login_view = "login"
+
+    user = _User("demo")
+
+    @login_manager.user_loader
+    def load_user(user_id: str):
+        return user if user_id == user.id else None
+
+    @app.route("/login", methods=["POST"])
+    def login():
+        login_user(user)
+        return "ok"
+
+    flask_profiler.init_app(app)
+
+    with app.app_context():
+        assert flask_profiler.current_profiler._auth_strategy == "flask-login"
+
+    client = app.test_client()
+
+    unauthenticated = client.get("/flask-profiler/")
+    assert unauthenticated.status_code in {302, 401}
+
+    with client:
+        client.post("/login")
+        response = client.get("/flask-profiler/")
+
+    assert response.status_code == 200
