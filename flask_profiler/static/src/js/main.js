@@ -1,7 +1,4 @@
 // Main entry point with tab navigation
-import { initDashboard, cleanupDashboard } from './dashboard.js';
-import { initFiltering, cleanupFiltering } from './filtering.js';
-import { initSettings, cleanupSettings } from './settings.js';
 
 // Import CSS files
 import '../css/normalize.css';
@@ -15,25 +12,36 @@ import 'flatpickr/dist/flatpickr.min.css';
 
 const REPO_API_URL = 'https://api.github.com/repos/berkpolatCE/flask-profiler-modern';
 
+const TAB_LOADERS = {
+  'tab-dashboard': {
+    load: () => import('./dashboard.js'),
+    init: 'initDashboard',
+    cleanup: 'cleanupDashboard'
+  },
+  'tab-filtering': {
+    load: () => import('./filtering.js'),
+    init: 'initFiltering',
+    cleanup: 'cleanupFiltering'
+  },
+  'tab-settings': {
+    load: () => import('./settings.js'),
+    init: 'initSettings',
+    cleanup: 'cleanupSettings'
+  }
+};
+
 class TabManager {
   constructor() {
-    this.tabs = {
-      'tab-dashboard': { 
-        init: initDashboard, 
-        cleanup: cleanupDashboard,
-        loaded: false 
-      },
-      'tab-filtering': { 
-        init: initFiltering, 
-        cleanup: cleanupFiltering,
-        loaded: false 
-      },
-      'tab-settings': { 
-        init: initSettings, 
-        cleanup: cleanupSettings,
-        loaded: false 
-      }
-    };
+    this.tabs = {};
+
+    Object.keys(TAB_LOADERS).forEach((tabId) => {
+      this.tabs[tabId] = {
+        ...TAB_LOADERS[tabId],
+        module: null,
+        loadPromise: null,
+        loaded: false
+      };
+    });
     
     this.currentTab = null;
     this.init();
@@ -44,10 +52,23 @@ class TabManager {
     document.querySelectorAll('.tab-link').forEach(link => {
       link.addEventListener('click', (e) => {
         e.preventDefault();
-        const href = link.getAttribute('href');
-        if (href && href.startsWith('#')) {
-          const tabId = href.substring(1);
+        const tabId = this.getTabIdFromLink(link);
+        if (tabId) {
           this.switchTab(tabId);
+        }
+      });
+
+      link.addEventListener('pointerenter', () => {
+        const tabId = this.getTabIdFromLink(link);
+        if (tabId) {
+          this.prefetchTab(tabId).catch(() => {});
+        }
+      });
+
+      link.addEventListener('focus', () => {
+        const tabId = this.getTabIdFromLink(link);
+        if (tabId) {
+          this.prefetchTab(tabId).catch(() => {});
         }
       });
     });
@@ -73,7 +94,48 @@ class TabManager {
     }
   }
   
+  getTabIdFromLink(link) {
+    const href = link.getAttribute('href');
+    if (!href || !href.startsWith('#')) {
+      return null;
+    }
+    return href.substring(1);
+  }
+
+  async prefetchTab(tabId) {
+    const tab = this.tabs[tabId];
+    if (!tab) {
+      return null;
+    }
+
+    if (tab.module) {
+      return tab.module;
+    }
+
+    if (!tab.loadPromise) {
+      tab.loadPromise = tab.load()
+        .then((module) => {
+          tab.module = module;
+          return module;
+        })
+        .catch((error) => {
+          tab.loadPromise = null;
+          throw error;
+        });
+    }
+
+    return tab.loadPromise;
+  }
+
+  async loadTabModule(tabId) {
+    return this.prefetchTab(tabId);
+  }
+
   async switchTab(tabId, pushState = true) {
+    if (!this.tabs[tabId]) {
+      return;
+    }
+
     // Don't switch if already on this tab
     if (this.currentTab === tabId) return;
     
@@ -82,7 +144,11 @@ class TabManager {
       const prevTab = this.tabs[this.currentTab];
       if (prevTab.cleanup) {
         try {
-          prevTab.cleanup();
+          const prevModule = prevTab.module || (prevTab.loadPromise ? await prevTab.loadPromise : null);
+          const cleanupFn = prevModule ? prevModule[prevTab.cleanup] : null;
+          if (typeof cleanupFn === 'function') {
+            cleanupFn();
+          }
         } catch (error) {
           console.error(`Error cleaning up ${this.currentTab}:`, error);
         }
@@ -113,8 +179,17 @@ class TabManager {
     if (tab) {
       try {
         // Always re-initialize to ensure fresh data
-        await tab.init();
-        tab.loaded = true;
+        const module = await this.loadTabModule(tabId);
+        if (this.currentTab !== tabId) {
+          return;
+        }
+        const initFn = module ? module[tab.init] : null;
+        if (typeof initFn === 'function') {
+          await initFn();
+          tab.loaded = true;
+        } else {
+          console.warn(`Missing initializer for ${tabId}`);
+        }
       } catch (error) {
         console.error(`Failed to load ${tabId}:`, error);
       }
