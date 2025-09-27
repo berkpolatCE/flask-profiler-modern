@@ -7,7 +7,18 @@ export class ServerSideTable {
     this.apiEndpoint = apiEndpoint;
     this.currentPage = 0;
     this.pageSize = options.pageSize || 25;
+    const optionSizes = Array.isArray(options.pageSizeOptions) && options.pageSizeOptions.length
+      ? options.pageSizeOptions.slice()
+      : [10, 25, 50, 100];
+    if (!optionSizes.includes(this.pageSize)) {
+      optionSizes.push(this.pageSize);
+    }
+    this.pageSizeOptions = optionSizes.sort((a, b) => a - b);
     this.hasNextPage = false;  // Track if there's a next page
+    this.pageSizeSelect = null;
+    this.pageSizeSelectId = `table-page-size-${Math.random().toString(36).slice(2, 7)}`;
+    this.paginationInfoElement = null;
+    this.currentDisplayCount = 0;
     
     this.params = {
       skip: 0,
@@ -73,6 +84,7 @@ export class ServerSideTable {
         ? measurements.slice(0, this.pageSize)
         : measurements;
       
+      this.currentDisplayCount = displayData.length;
       this.updateTable(displayData);
       this.updatePagination();
     } catch (error) {
@@ -95,7 +107,50 @@ export class ServerSideTable {
       <div class="table-pagination"></div>
     `;
     
+    this.paginationInfoElement = this.container.querySelector('.table-pagination-info');
+    this.renderPageSizeControl();
     this.renderHeaders();
+  }
+
+  renderPageSizeControl() {
+    const controls = this.container.querySelector('.table-filters')
+      || this.container.querySelector('.table-controls');
+
+    if (!controls) return;
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'table-page-size';
+
+    const label = document.createElement('label');
+    label.className = 'filter-label';
+    label.setAttribute('for', this.pageSizeSelectId);
+    label.textContent = 'Rows per page';
+
+    const select = document.createElement('select');
+    select.className = 'filter-input table-page-size__select';
+    select.id = this.pageSizeSelectId;
+    select.setAttribute('aria-label', 'Rows per page');
+
+    this.pageSizeOptions.forEach(size => {
+      const option = document.createElement('option');
+      option.value = size;
+      option.textContent = size;
+      select.appendChild(option);
+    });
+
+    select.value = this.pageSize;
+    select.addEventListener('change', (event) => {
+      const newSize = parseInt(event.target.value, 10);
+      if (!Number.isNaN(newSize)) {
+        this.changePageSize(newSize);
+      }
+    });
+
+    wrapper.appendChild(label);
+    wrapper.appendChild(select);
+    controls.appendChild(wrapper);
+
+    this.pageSizeSelect = select;
   }
 
   renderHeaders() {
@@ -196,6 +251,15 @@ export class ServerSideTable {
     this.loadData();
   }
 
+  changePageSize(newSize) {
+    if (newSize === this.pageSize) return;
+    this.pageSize = newSize;
+    this.params.limit = newSize;
+    this.params.skip = 0;
+    this.currentPage = 0;
+    this.loadData();
+  }
+
   async filter(filters) {
     Object.entries(filters).forEach(([key, value]) => {
       this.params[key] = value === undefined ? null : value;
@@ -207,6 +271,20 @@ export class ServerSideTable {
 
   updatePagination() {
     const paginationDiv = this.container.querySelector('.table-pagination');
+    const hasData = this.currentDisplayCount > 0;
+    const startRecord = hasData ? this.currentPage * this.pageSize + 1 : 0;
+    const endRecord = hasData ? startRecord + this.currentDisplayCount - 1 : 0;
+
+    if (this.paginationInfoElement) {
+      this.paginationInfoElement.textContent = hasData
+        ? `Showing ${startRecord}-${endRecord}`
+        : '';
+    }
+
+    if (!hasData) {
+      paginationDiv.textContent = '';
+      return;
+    }
     
     // Only show pagination if there are multiple pages
     if (this.currentPage === 0 && !this.hasNextPage) {
@@ -222,8 +300,6 @@ export class ServerSideTable {
     }
     
     // Page info
-    const startRecord = this.currentPage * this.pageSize + 1;
-    const endRecord = startRecord + this.pageSize - 1;
     html += `<span class="page-info">Showing ${startRecord}-${endRecord}</span>`;
     
     // Next button

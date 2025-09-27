@@ -21,6 +21,7 @@ export function initFiltering() {
   // Initialize server-side table for filtering
   filteringTable = new ServerSideTable(container, '/flask-profiler/api/measurements/', {
     pageSize: 25,
+    pageSizeOptions: [10, 25, 50, 100],
     columns: [
       { 
         field: 'method', 

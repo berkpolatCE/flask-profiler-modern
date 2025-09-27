@@ -84,6 +84,16 @@
   flex-wrap: wrap;
 }
 
+.table-page-size {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+
+.table-page-size__select {
+  min-width: 5rem;
+}
+
 .table-pagination-info {
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
