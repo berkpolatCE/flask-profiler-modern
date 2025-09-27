@@ -1,3 +1,5 @@
+import { createElement } from './dom.js';
+
 // API Service and utilities
 export class APIService {
   constructor(baseURL = '/flask-profiler/api') {
@@ -119,9 +121,10 @@ function showAlert(message, type = 'info') {
     existingAlert.remove();
   }
 
-  const alert = document.createElement('div');
-  alert.className = `alert alert-${type}`;
-  alert.textContent = message;
+  const alert = createElement('div', {
+    className: `alert alert-${type}`,
+    text: message
+  });
   
   // Insert at the beginning of main content
   const main = document.querySelector('.main');
@@ -159,10 +162,11 @@ export function getMethodColor(method) {
 }
 
 export function createMethodBadge(method) {
-  const badge = document.createElement('span');
   const label = method ? String(method).toUpperCase() : 'UNKNOWN';
-  badge.className = 'method-badge';
-  badge.textContent = label;
+  const badge = createElement('span', {
+    className: 'method-badge',
+    text: label
+  });
   badge.style.setProperty('--method-badge-color', getMethodColor(label));
   return badge;
 }

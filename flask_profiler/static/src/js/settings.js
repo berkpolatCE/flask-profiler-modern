@@ -1,5 +1,6 @@
 // Settings page
 import { APIService, showSuccess, showError } from './utils.js';
+import { createElement } from './dom.js';
 
 const api = new APIService();
 
@@ -75,16 +76,14 @@ function displayCurrentSettings() {
       'Authentication': 'Configured on the server'
     };
     
-    let html = '<dl class="settings-list">';
-    for (const [key, value] of Object.entries(settings)) {
-      html += `
-        <dt>${key}:</dt>
-        <dd>${value}</dd>
-      `;
-    }
-    html += '</dl>';
-    
-    settingsDisplay.innerHTML = html;
+    const list = createElement('dl', { className: 'settings-list' });
+    Object.entries(settings).forEach(([key, value]) => {
+      list.appendChild(createElement('dt', { text: `${key}:` }));
+      list.appendChild(createElement('dd', { text: value }));
+    });
+
+    settingsDisplay.innerHTML = '';
+    settingsDisplay.appendChild(list);
   }
 }
 

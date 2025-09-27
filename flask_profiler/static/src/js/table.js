@@ -1,3 +1,5 @@
+import { createElement } from './dom.js';
+
 // Server-side table component
 // Note: Since backend doesn't return total count, we over-fetch by 1 record
 // to detect if there's a next page (frontend-only pagination solution)
@@ -122,24 +124,25 @@ export class ServerSideTable {
 
     if (!controls) return;
 
-    const wrapper = document.createElement('div');
-    wrapper.className = 'table-page-size';
+    const label = createElement('label', {
+      className: 'filter-label',
+      attrs: { for: this.pageSizeSelectId },
+      text: 'Rows per page'
+    });
 
-    const label = document.createElement('label');
-    label.className = 'filter-label';
-    label.setAttribute('for', this.pageSizeSelectId);
-    label.textContent = 'Rows per page';
+    const select = createElement('select', {
+      className: 'filter-input table-page-size__select',
+      attrs: {
+        id: this.pageSizeSelectId,
+        'aria-label': 'Rows per page'
+      }
+    });
 
-    const select = document.createElement('select');
-    select.className = 'filter-input table-page-size__select';
-    select.id = this.pageSizeSelectId;
-    select.setAttribute('aria-label', 'Rows per page');
-
-    this.pageSizeOptions.forEach(size => {
-      const option = document.createElement('option');
-      option.value = size;
-      option.textContent = size;
-      select.appendChild(option);
+    this.pageSizeOptions.forEach((size) => {
+      select.appendChild(createElement('option', {
+        attrs: { value: size },
+        text: size
+      }));
     });
 
     select.value = this.pageSize;
@@ -150,8 +153,7 @@ export class ServerSideTable {
       }
     });
 
-    wrapper.appendChild(label);
-    wrapper.appendChild(select);
+    const wrapper = createElement('div', { className: 'table-page-size' }, label, select);
     controls.appendChild(wrapper);
 
     this.pageSizeSelect = select;

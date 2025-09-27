@@ -2,6 +2,7 @@
 import { APIService, showError, formatElapsed, formatTimestamp, createMethodBadge, highlightJSON } from './utils.js';
 import { enhanceDropdown } from './enhancedDropdown.js';
 import { ServerSideTable } from './table.js';
+import { createElement } from './dom.js';
 import flatpickr from 'flatpickr';
 import dayjs from 'dayjs';
 
@@ -47,11 +48,14 @@ export function initFiltering() {
         label: 'Actions',
         sortable: false,
         render: (value) => {
-          const button = document.createElement('button');
-          button.className = 'btn-view';
-          button.dataset.id = String(value);
-          button.textContent = 'View JSON';
-          return button;
+          return createElement('button', {
+            className: 'btn-view',
+            attrs: {
+              'data-id': String(value),
+              type: 'button'
+            },
+            text: 'View JSON'
+          });
         }
       }
     ],
@@ -173,6 +177,9 @@ function applyFilters() {
 function resetFilters() {
   // Clear input fields
   document.querySelectorAll('.filter-input').forEach(input => {
+    if (input === filteringTable?.pageSizeSelect) {
+      return;
+    }
     if (input.tagName === 'SELECT') {
       input.selectedIndex = 0;
       input.value = '';

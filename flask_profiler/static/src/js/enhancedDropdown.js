@@ -1,5 +1,6 @@
-// Accessible enhanced dropdown helper
+import { createElement } from './dom.js';
 
+// Accessible enhanced dropdown helper
 const DEFAULT_CLASS_PREFIX = 'enhanced-dropdown';
 
 function buildClassNames(prefix = DEFAULT_CLASS_PREFIX) {
@@ -49,8 +50,7 @@ export function enhanceDropdown(select, config = {}) {
 
   select.dataset.dropdownEnhanced = 'true';
 
-  const wrapper = document.createElement('div');
-  wrapper.className = classes.wrapper;
+  const wrapper = createElement('div', { className: classes.wrapper });
   container.insertBefore(wrapper, select);
   wrapper.appendChild(select);
 
@@ -59,12 +59,15 @@ export function enhanceDropdown(select, config = {}) {
 
   const labelId = ensureLabelId(select);
 
-  const trigger = document.createElement('button');
-  trigger.type = 'button';
-  trigger.className = classes.trigger;
-  trigger.id = `${select.id}-toggle`;
-  trigger.setAttribute('aria-haspopup', 'listbox');
-  trigger.setAttribute('aria-expanded', 'false');
+  const trigger = createElement('button', {
+    className: classes.trigger,
+    attrs: {
+      type: 'button',
+      id: `${select.id}-toggle`,
+      'aria-haspopup': 'listbox',
+      'aria-expanded': 'false'
+    }
+  });
 
   if (labelId) {
     trigger.setAttribute('aria-labelledby', `${labelId} ${trigger.id}`);
@@ -72,32 +75,38 @@ export function enhanceDropdown(select, config = {}) {
     trigger.setAttribute('aria-label', select.getAttribute('aria-label'));
   }
 
-  const labelEl = document.createElement('span');
-  labelEl.className = classes.label;
+  const labelEl = createElement('span', { className: classes.label });
   trigger.appendChild(labelEl);
 
-  const chevronEl = document.createElement('span');
-  chevronEl.className = classes.chevron;
-  chevronEl.setAttribute('aria-hidden', 'true');
+  const chevronEl = createElement('span', {
+    className: classes.chevron,
+    attrs: { 'aria-hidden': 'true' }
+  });
   trigger.appendChild(chevronEl);
 
   wrapper.appendChild(trigger);
 
-  const menu = document.createElement('ul');
-  menu.className = classes.menu;
-  menu.id = `${select.id}-menu`;
-  menu.setAttribute('role', 'listbox');
-  menu.setAttribute('tabindex', '-1');
+  const menu = createElement('ul', {
+    className: classes.menu,
+    attrs: {
+      id: `${select.id}-menu`,
+      role: 'listbox',
+      tabindex: '-1'
+    }
+  });
   trigger.setAttribute('aria-controls', menu.id);
   wrapper.appendChild(menu);
 
   const optionNodes = Array.from(select.options).map((option) => {
-    const optionItem = document.createElement('li');
-    optionItem.className = classes.option;
-    optionItem.dataset.value = option.value;
-    optionItem.setAttribute('role', 'option');
-    optionItem.setAttribute('tabindex', '-1');
-    optionItem.textContent = option.textContent;
+    const optionItem = createElement('li', {
+      className: classes.option,
+      attrs: {
+        'data-value': option.value,
+        role: 'option',
+        tabindex: '-1'
+      },
+      text: option.textContent
+    });
     menu.appendChild(optionItem);
     return optionItem;
   });

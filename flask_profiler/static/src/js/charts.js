@@ -1,6 +1,31 @@
 // Chart components
-import Chart from 'chart.js/auto';
+import {
+  ArcElement,
+  CategoryScale,
+  Chart,
+  DoughnutController,
+  Filler,
+  Legend,
+  LineController,
+  LineElement,
+  LinearScale,
+  PointElement,
+  Tooltip
+} from 'chart.js';
 import { getMethodColor } from './utils.js';
+
+Chart.register(
+  ArcElement,
+  CategoryScale,
+  DoughnutController,
+  Filler,
+  Legend,
+  LineController,
+  LineElement,
+  LinearScale,
+  PointElement,
+  Tooltip
+);
 
 export function createTimeSeriesChart(canvas, seriesData) {
   // Transform backend format { "label": count } to arrays
