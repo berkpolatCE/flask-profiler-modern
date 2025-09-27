@@ -72,7 +72,11 @@ export class ServerSideTable {
       const url = new URL(this.apiEndpoint, window.location.origin);
       url.search = params.toString();
       
-      const response = await fetch(url);
+    const response = await fetch(url);
+    if (!response.ok) {
+      const statusText = response.statusText ? ` ${response.statusText}` : '';
+      throw new Error(`HTTP ${response.status}${statusText}`);
+    }
       const data = await response.json();
       const measurements = data.measurements || data;
       

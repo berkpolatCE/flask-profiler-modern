@@ -4,62 +4,41 @@ export class APIService {
     this.baseURL = baseURL;
   }
 
-  async fetchMeasurements(params = {}) {
-    const url = new URL(`${this.baseURL}/measurements/`, window.location.origin);
+  async _fetchJson(path, params = {}, init = {}) {
+    const url = new URL(`${this.baseURL}${path}`, window.location.origin);
     Object.entries(params).forEach(([key, value]) => {
       if (value !== undefined && value !== null) {
         url.searchParams.append(key, value);
       }
     });
-    
-    const response = await fetch(url);
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+    const response = await fetch(url, init);
+    if (!response.ok) {
+      const statusText = response.statusText ? ` ${response.statusText}` : '';
+      throw new Error(`HTTP ${response.status}${statusText}`);
+    }
+
     return response.json();
+  }
+
+  async fetchMeasurements(params = {}) {
+    return this._fetchJson('/measurements/', params);
   }
 
   async fetchSummary(params = {}) {
-    const url = new URL(`${this.baseURL}/measurements/grouped`, window.location.origin);
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== null) {
-        url.searchParams.append(key, value);
-      }
-    });
-    
-    const response = await fetch(url);
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    return response.json();
+    return this._fetchJson('/measurements/grouped', params);
   }
 
   async fetchTimeseries(params = {}) {
-    const url = new URL(`${this.baseURL}/measurements/timeseries/`, window.location.origin);
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== null) {
-        url.searchParams.append(key, value);
-      }
-    });
-    
-    const response = await fetch(url);
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    return response.json();
+    return this._fetchJson('/measurements/timeseries/', params);
   }
 
   async fetchMethodDistribution(params = {}) {
-    const url = new URL(`${this.baseURL}/measurements/methodDistribution/`, window.location.origin);
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== null) {
-        url.searchParams.append(key, value);
-      }
-    });
-    
-    const response = await fetch(url);
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    return response.json();
+    return this._fetchJson('/measurements/methodDistribution/', params);
   }
 
   async getMeasurementDetail(measurementId) {
-    const response = await fetch(`${this.baseURL}/measurements/${measurementId}`);
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    return response.json();
+    return this._fetchJson(`/measurements/${measurementId}`);
   }
 
   async deleteDatabase() {
