@@ -11,6 +11,8 @@ env/
 build/
 develop-eggs/
 dist/
+.vscode/
+.pytest_cache/
 downloads/
 eggs/
 .eggs/
