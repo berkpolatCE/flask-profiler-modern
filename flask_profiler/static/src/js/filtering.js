@@ -142,17 +142,31 @@ async function handleViewJSON(e) {
 }
 
 function applyFilters() {
-  const filters = {};
-  
-  const method = document.getElementById('filter-method')?.value;
-  if (method) filters.method = method;
-  
-  const name = document.getElementById('filter-name')?.value;
-  if (name) filters.name = name;
-  
-  const elapsed = document.getElementById('filter-elapsed')?.value;
-  if (elapsed) filters.elapsed = parseFloat(elapsed);
-  
+  const filters = {
+    method: null,
+    name: null,
+    elapsed: null
+  };
+
+  const methodInput = document.getElementById('filter-method');
+  const selectedMethod = methodInput?.value?.trim();
+  if (selectedMethod) {
+    filters.method = selectedMethod;
+  }
+
+  const nameInput = document.getElementById('filter-name');
+  const nameValue = nameInput?.value?.trim();
+  if (nameValue) {
+    filters.name = nameValue;
+  }
+
+  const elapsedInput = document.getElementById('filter-elapsed');
+  const elapsedRaw = elapsedInput?.value?.trim();
+  if (elapsedRaw) {
+    const parsedElapsed = parseFloat(elapsedRaw);
+    filters.elapsed = Number.isFinite(parsedElapsed) ? parsedElapsed : null;
+  }
+
   filteringTable.filter(filters);
 }
 
@@ -182,6 +196,9 @@ function resetFilters() {
   
   // Reset table filters
   filteringTable.filter({
+    method: null,
+    name: null,
+    elapsed: null,
     startedAt: Math.floor(dayjs().subtract(7, 'day').valueOf() / 1000),
     endedAt: Math.floor(Date.now() / 1000)
   });
