@@ -154,3 +154,66 @@ def test_dashboard_uses_flask_login_when_enabled(tmp_path):
         response = client.get("/flask-profiler/")
 
     assert response.status_code == 200
+
+
+def test_dashboard_uses_flask_security_when_enabled(tmp_path, monkeypatch):
+    import sys
+    import types
+
+    call_log = []
+
+    fake_security = types.ModuleType("flask_security")
+
+    def _fake_auth_required(*args, **kwargs):
+        call_log.append(("factory", args, kwargs))
+
+        def _decorator(func):
+            call_log.append(("decorator", func.__name__))
+            return func
+
+        return _decorator
+
+    fake_security.auth_required = _fake_auth_required
+
+    def _fail_login_required(func):
+        raise AssertionError("login_required fallback should not be used when auth_required exists")
+
+    fake_security.login_required = _fail_login_required
+
+    fake_decorators = types.ModuleType("flask_security.decorators")
+    fake_decorators.login_required = _fail_login_required
+
+    monkeypatch.setitem(sys.modules, "flask_security", fake_security)
+    monkeypatch.setitem(sys.modules, "flask_security.decorators", fake_decorators)
+
+    app = Flask("flask-security-app")
+    app.config["TESTING"] = True
+    app.config["flask_profiler"] = {
+        "enabled": True,
+        "storage": {
+            "engine": "sqlalchemy",
+            "db_url": f"sqlite:///{tmp_path / 'flask_security.db'}",
+        },
+        "flaskSecurity": {
+            "enabled": True,
+            "args": "token",
+            "within": "1 hour",
+            "roles": ["admin"],
+        },
+    }
+
+    flask_profiler.init_app(app)
+
+    with app.app_context():
+        assert flask_profiler.current_profiler._auth_strategy == "flask-security"
+
+    expected_args = ("token",)
+    expected_kwargs = {"within": "1 hour", "roles": ["admin"]}
+    assert call_log, "auth_required decorator should decorate internal routes"
+    assert call_log[0] == ("factory", expected_args, expected_kwargs)
+    assert any(entry[0] == "decorator" for entry in call_log)
+
+    client = app.test_client()
+    response = client.get("/flask-profiler/")
+
+    assert response.status_code == 200

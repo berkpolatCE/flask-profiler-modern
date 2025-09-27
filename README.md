@@ -1,6 +1,6 @@
 # flask-profiler-modern
 
-A fully modernized fork of the original [flask-profiler](https://github.com/muatik/flask-profiler) project. It delivers the profiling simplicity you expect with a refreshed UI, secure defaults, first-class support for Flask 3.x, and seamless reuse of your existing `flask-login` setup. Modernization and ongoing maintenance are led by **Berk Polat**, building on the foundation created by **Mustafa Atik**.
+A fully modernized fork of the original [flask-profiler](https://github.com/muatik/flask-profiler) project. It delivers the profiling simplicity you expect with a refreshed UI, secure defaults, first-class support for Flask 3.x, and seamless reuse of your existing `flask-login` or `flask-security` setup. Modernization and ongoing maintenance are led by **Berk Polat**, building on the foundation created by **Mustafa Atik**.
 
 ---
 
@@ -24,7 +24,7 @@ A fully modernized fork of the original [flask-profiler](https://github.com/muat
 - **Flask 3.x compatible** – Extension-style initialization with per-app state and thread safety.
 - **Modern dashboard** – Vite-built UI, responsive layout, and syntax-highlighted measurement detail.
 - **Multi-backend storage** – SQLite, SQLAlchemy, and MongoDB (or custom engines) with parametrized pytest coverage.
-- **Drop-in authentication** – Ship with built-in basic auth or reuse the `flask-login` protection already in your app.
+- **Drop-in authentication** – Ship with built-in basic auth or reuse the `flask-login` / `flask-security` protection already in your app.
 - **Secure defaults** – Ignore patterns, highlighted configuration guidance, and headers that keep the dashboard private.
 - **Simple integration** – One `init_app` call profiles existing routes; decorators cover factory or late-registered endpoints.
 
@@ -65,6 +65,9 @@ app.config["flask_profiler"] = {
     },
     "flaskLogin": {
         "enabled": False                  # reuse your existing Flask-Login setup when True
+    },
+    "flaskSecurity": {
+        "enabled": False                  # wrap dashboard with Flask-Security's auth_required/login_required
     },
     "ignore": ["^/static/.*"]
 }
@@ -141,6 +144,7 @@ Extras control dependency installation; see [Installation](#installation).
 | `basicAuth.enabled`               | bool      | `False`                        | Enable dashboard authentication                          |
 | `basicAuth.username/password`     | str       | `admin/admin` (example)        | Credentials if basic auth is enabled                     |
 | `flaskLogin.enabled`              | bool      | `False`                        | Protect dashboard using Flask-Login's `login_required`   |
+| `flaskSecurity.enabled`           | bool      | `False`                        | Protect dashboard using Flask-Security decorators        |
 | `ignore`                          | list[str] | `[]`                           | Regex patterns to skip profiling                         |
 | `sampling_function`               | callable  | `None`                         | Return truthy to record, falsy to skip                  |
 | `endpointRoot`                    | str       | `"flask-profiler"`            | URL prefix for dashboard and API                         |
@@ -150,12 +154,13 @@ Extras control dependency installation; see [Installation](#installation).
 
 ### Authentication
 
-`flask-profiler` keeps the dashboard private with either built-in HTTP basic auth or your application's existing `flask-login` setup, so it drops straight into projects that already rely on `flask-login`.
+`flask-profiler` keeps the dashboard private with either built-in HTTP basic auth or your application's existing authentication stack (`flask-login` or `flask-security`).
 
 - Basic auth: provide `basicAuth.enabled`, `basicAuth.username`, and `basicAuth.password`. The client will be prompted for credentials.
 - Flask-Login: set `flaskLogin.enabled` to `True` once you've configured `LoginManager`. The extension simply wraps its routes with `flask_login.login_required`, so your usual login flow applies. `basicAuth` settings are ignored in this mode.
+- Flask-Security: set `flaskSecurity.enabled` to `True` after wiring Flask-Security (or Flask-Security-Too). `flask-profiler` will use `auth_required()` when available, falling back to `login_required`. `flaskLogin` and `basicAuth` settings are ignored in this mode.
 
-Make sure the `Flask-Login` package is installed when you enable the second option.
+Make sure the relevant authentication package is installed when you enable these options.
 
 ---
 
